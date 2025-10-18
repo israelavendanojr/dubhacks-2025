@@ -18,7 +18,7 @@ interface RiskTerrainMapProps {
 }
 
 // King County view configuration
-const KING_COUNTY_VIEW: ViewState = {
+const KING_COUNTY_VIEW = {
   longitude: -122.2015,    // Center of King County
   latitude: 47.4668,
   zoom: 9.5,               // Shows full county
@@ -75,7 +75,17 @@ export function RiskTerrainMap({
         initialViewState={viewState}
         controller={true}
         layers={layers}
+        effects={[lightingEffect]}
         onViewStateChange={handleViewStateChange}
+        parameters={{
+          clearColor: [0, 0, 0, 1]
+        }}
+        glOptions={{
+          preserveDrawingBuffer: true,
+          antialias: true,
+          depth: true,
+          stencil: false
+        }}
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
@@ -84,6 +94,11 @@ export function RiskTerrainMap({
           antialias={true}
           preserveDrawingBuffer={true}
           reuseMaps={true}
+          glOptions={{
+            preserveDrawingBuffer: true,
+            antialias: true,
+            depth: true
+          }}
         />
       </DeckGL>
       
