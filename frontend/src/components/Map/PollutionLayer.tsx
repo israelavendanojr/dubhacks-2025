@@ -3,6 +3,16 @@ import type { AggregatedDataPoint } from '../../types/pollution.types';
 import { getPollutionColor } from '../../utils/colorMapping';
 import type { ChemicalConfig } from '../../config/chemicals';
 
+// Helper function to get chemical color by ID
+function getChemicalColor(chemicalId: string): [number, number, number] {
+  const colorMap: { [key: string]: [number, number, number] } = {
+    'co': [239, 68, 68],    // Red
+    'no2': [249, 115, 22],  // Orange
+    'so2': [234, 179, 8]    // Yellow
+  };
+  return colorMap[chemicalId] || [128, 128, 128]; // Default gray
+}
+
 interface PollutionLayerProps {
   data: AggregatedDataPoint[];
   visible: boolean;
@@ -50,9 +60,17 @@ export function createPollutionLayer({
     lineWidthMinPixels: 1,
     getPosition: (d: AggregatedDataPoint) => d.coordinates,
     getRadius: (d: AggregatedDataPoint) => Math.max(5, d.normalizedAmount * 1000),
-    getFillColor: (d: AggregatedDataPoint) => {
-      const [r, g, b] = getPollutionColor(d.normalizedAmount, chemicalConfig);
-      return [r, g, b, 255];
+    getFillColor: (d: any) => {
+      // Handle combined data with chemical information
+      if (d.chemicalId && d.chemicalName) {
+        // For combined data, use the chemical-specific color directly
+        const [r, g, b] = getChemicalColor(d.chemicalId);
+        return [r, g, b, 255];
+      } else {
+        // Handle single chemical data
+        const [r, g, b] = getPollutionColor(d.normalizedAmount, chemicalConfig);
+        return [r, g, b, 255];
+      }
     },
     getLineColor: [255, 255, 255, 100],
     onHover: ({ object }) => onHover?.(object as AggregatedDataPoint),

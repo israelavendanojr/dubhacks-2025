@@ -1,7 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { RiskTerrainMap } from './components/Map/RiskTerrainMap';
 import { TimelineControls } from './components/UI/TimelineControls';
-import { PollutionToggle } from './components/UI/PollutionToggle';
 import { ChemicalSelector } from './components/UI/ChemicalSelector';
 import { PollutionLegend } from './components/UI/PollutionLegend';
 import { usePollutionData } from './hooks/usePollutionData';
@@ -9,8 +8,6 @@ import { useTimeline } from './hooks/useTimeline';
 import type { ViewState } from './types/terrain.types';
 
 function App() {
-  const [showPollution, setShowPollution] = useState(true);
-  
   // Pollution data and timeline
   const pollution = usePollutionData();
   const timeline = useTimeline(pollution.monthlyData);
@@ -23,10 +20,9 @@ function App() {
   useEffect(() => {
     console.log('App received timeline update:', {
       currentMonth: timeline.currentMonth?.yearMonth,
-      dataPoints: timeline.currentMonth?.dataPoints.length,
-      showPollution
+      dataPoints: timeline.currentMonth?.dataPoints.length
     });
-  }, [timeline.currentMonth, showPollution]);
+  }, [timeline.currentMonth]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
@@ -36,8 +32,8 @@ function App() {
         <div className="flex items-center justify-between">
           {/* Logo/Title */}
           <div>
-            <h1 className="text-2xl font-bold text-white">RiskScape 3D</h1>
-            <p className="text-sm text-cyan-400">Seattle King County Environmental Analysis</p>
+            <h1 className="text-2xl font-bold text-white">Risk3D</h1>
+            <p className="text-sm text-cyan-400">Environmental Analysis Across King County</p>
           </div>
           
           {/* Chemical Selector */}
@@ -61,7 +57,7 @@ function App() {
             {/* The Map */}
             <RiskTerrainMap 
               pollutionData={timeline.currentMonth?.dataPoints || []}
-              showPollution={showPollution}
+              showPollution={true}
               currentMonth={timeline.currentMonth?.yearMonth}
               chemicalConfig={pollution.currentChemicalConfig}
               onViewStateChange={handleViewStateChange}
@@ -126,7 +122,7 @@ function App() {
             
             {/* Pollution Legend - Inside map, bottom-left */}
             <PollutionLegend 
-              visible={showPollution && !pollution.isLoading && !pollution.error}
+              visible={!pollution.isLoading && !pollution.error}
               chemicalConfig={pollution.currentChemicalConfig}
             />
           </div>
@@ -137,11 +133,6 @@ function App() {
           <div className="bg-gray-900/95 backdrop-blur-md rounded-xl border border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-semibold text-lg">Timeline</h3>
-              <PollutionToggle
-                showPollution={showPollution}
-                onToggle={setShowPollution}
-                disabled={pollution.isLoading}
-              />
             </div>
             
             <TimelineControls

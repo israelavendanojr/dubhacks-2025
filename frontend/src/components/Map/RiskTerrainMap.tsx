@@ -93,7 +93,9 @@ export function RiskTerrainMap({
       {hoveredPollution && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl z-30 pointer-events-none">
           <div className="text-white text-sm">
-            <div className="font-semibold mb-2">{chemicalConfig?.name} Data</div>
+            <div className="font-semibold mb-2">
+              {(hoveredPollution as any).chemicalName || chemicalConfig?.name} Data
+            </div>
             <div className="space-y-1">
               <div>
                 Location: <span className="text-cyan-400">
@@ -105,7 +107,7 @@ export function RiskTerrainMap({
               )}
               <div>
                 Amount: <span className="text-cyan-400 font-bold">
-                  {hoveredPollution.averageAmount.toFixed(3)} {chemicalConfig?.unit}
+                  {hoveredPollution.averageAmount.toFixed(3)} {(hoveredPollution as any).chemicalId ? 'units' : chemicalConfig?.unit}
                 </span>
               </div>
               <div>Readings: <span className="text-cyan-400">{hoveredPollution.readingCount}</span></div>
