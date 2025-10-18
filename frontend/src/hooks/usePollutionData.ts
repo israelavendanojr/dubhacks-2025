@@ -48,13 +48,27 @@ export function usePollutionData(): UsePollutionDataReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // ADD: Log when chemical changes
+  useEffect(() => {
+    const currentData = allData[selectedChemical];
+    console.log('Chemical changed to:', {
+      chemical: selectedChemical,
+      availableMonths: currentData?.length || 0,
+      totalDataPoints: currentData?.reduce((sum, m) => sum + m.dataPoints.length, 0) || 0
+    });
+  }, [selectedChemical, allData]);
+  
   const loadAllChemicals = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       
+      console.log('🔄 Loading chemical data...');
+      
       // Get list of available chemicals
       const chemicals = await getAvailableChemicals();
+      console.log(`✓ Found ${chemicals.length} available chemicals:`, chemicals.map(c => c.id));
+      
       setAvailableChemicals(chemicals);
       
       // Load data for all available chemicals
@@ -62,25 +76,45 @@ export function usePollutionData(): UsePollutionDataReturn {
       
       for (const chemical of chemicals) {
         try {
+          console.log(`📥 Loading ${chemical.name} from ${chemical.fileName}...`);
           const chemicalData = await loadChemicalData(chemical.fileName);
           data[chemical.id] = chemicalData;
-          console.log(`✓ Loaded ${chemical.name}: ${chemicalData.length} months`);
+          
+          console.log(`✅ ${chemical.name}:`, {
+            months: chemicalData.length,
+            totalReadings: chemicalData.reduce((sum, m) => sum + m.totalReadings, 0),
+            dateRange: chemicalData.length > 0 
+              ? `${chemicalData[0].yearMonth} to ${chemicalData[chemicalData.length - 1].yearMonth}`
+              : 'No data',
+            avgAmount: chemicalData.length > 0
+              ? (chemicalData.reduce((sum, m) => sum + m.averageAmount, 0) / chemicalData.length).toFixed(3)
+              : 'N/A',
+            maxAmount: chemicalData.length > 0
+              ? Math.max(...chemicalData.map(m => m.maxAmount)).toFixed(3)
+              : 'N/A',
+            minAmount: chemicalData.length > 0
+              ? Math.min(...chemicalData.map(m => m.minAmount)).toFixed(3)
+              : 'N/A'
+          });
+          
         } catch (err) {
-          console.error(`Failed to load ${chemical.name}:`, err);
+          console.error(`❌ Failed to load ${chemical.name}:`, err);
         }
       }
       
+      console.log('✅ All chemical data loaded:', Object.keys(data));
       setAllData(data);
       
       // Set first available chemical as selected if current selection is not available
       if (chemicals.length > 0 && !chemicals.find(c => c.id === selectedChemical)) {
+        console.log(`Setting default chemical to: ${chemicals[0].id}`);
         setSelectedChemical(chemicals[0].id);
       }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load pollution data';
+      console.error('❌ Error loading pollution data:', err);
       setError(errorMessage);
-      console.error('Error loading pollution data:', err);
     } finally {
       setIsLoading(false);
     }

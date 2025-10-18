@@ -32,8 +32,6 @@ export function TimelineControls({
   const sliderRef = useRef<HTMLDivElement>(null);
   
   const currentMonth = availableMonths[currentMonthIndex];
-  const firstMonth = availableMonths[0];
-  const lastMonth = availableMonths[availableMonths.length - 1];
   
   // Handle slider click
   const handleSliderClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -88,104 +86,49 @@ export function TimelineControls({
   }
   
   return (
-    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-4/5 max-w-4xl z-50">
-      <div className="bg-gray-900/95 backdrop-blur-md rounded-xl px-6 py-4 shadow-2xl border border-gray-800">
-        {/* Main Timeline Slider */}
-        <div className="flex items-center space-x-4 mb-3">
-          {/* Previous Button */}
-          <button
-            onClick={goToPrevious}
-            disabled={!canGoPrevious}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Previous month (←)"
-          >
-            <ChevronLeft className="w-5 h-5 text-white" />
-          </button>
-          
-          {/* Timeline Slider */}
-          <div className="flex-1 relative">
-            <div
-              ref={sliderRef}
-              className="h-2 bg-gray-700 rounded-full cursor-pointer relative"
-              onClick={handleSliderClick}
-            >
-              {/* Slider Track */}
-              <div className="absolute inset-0 bg-gray-700 rounded-full" />
-              
-              {/* Progress Fill */}
-              <div
-                className="absolute top-0 left-0 h-full bg-cyan-400 rounded-full transition-all duration-200"
-                style={{ width: `${progress * 100}%` }}
-              />
-              
-              {/* Current Position Indicator */}
-              <div
-                className="absolute top-1/2 transform -translate-y-1/2 w-4 h-4 bg-cyan-400 rounded-full border-2 border-white shadow-lg transition-all duration-200"
-                style={{ left: `${progress * 100}%`, marginLeft: '-8px' }}
-              />
-              
-              {/* Month Markers */}
-              {availableMonths.map((month, index) => {
-                const position = (index / (totalMonths - 1)) * 100;
-                return (
-                  <div
-                    key={month}
-                    className="absolute top-1/2 transform -translate-y-1/2 w-1 h-1 bg-gray-500 rounded-full"
-                    style={{ left: `${position}%`, marginLeft: '-2px' }}
-                  />
-                );
-              })}
-            </div>
-            
-            {/* Date Range Labels */}
-            <div className="flex justify-between mt-2 text-xs text-gray-400">
-              <span>{firstMonth ? formatYearMonth(firstMonth) : ''}</span>
-              <span>{lastMonth ? formatYearMonth(lastMonth) : ''}</span>
-            </div>
-          </div>
-          
-          {/* Next Button */}
-          <button
-            onClick={goToNext}
-            disabled={!canGoNext}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Next month (→)"
-          >
-            <ChevronRight className="w-5 h-5 text-white" />
-          </button>
-          
-          {/* Play/Pause Button */}
-          <button
-            onClick={togglePlay}
-            className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 transition-colors"
-            title={`${isPlaying ? 'Pause' : 'Play'} (Space)`}
-          >
-            {isPlaying ? (
-              <Pause className="w-5 h-5 text-white" />
-            ) : (
-              <Play className="w-5 h-5 text-white" />
-            )}
-          </button>
+    <div>
+      <div className="flex items-center gap-4 mb-4">
+        <button
+          onClick={goToPrevious}
+          disabled={!canGoPrevious}
+          className="p-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 rounded-lg"
+        >
+          <ChevronLeft className="w-5 h-5 text-white" />
+        </button>
+        
+        <div 
+          ref={sliderRef}
+          className="flex-1 relative h-2 bg-gray-700 rounded-full cursor-pointer" 
+          onClick={handleSliderClick}
+        >
+          <div
+            className="absolute h-full bg-cyan-400 rounded-full"
+            style={{ width: `${progress * 100}%` }}
+          />
         </div>
         
-        {/* Current Month Display */}
-        <div className="text-center">
-          <div className="text-2xl font-bold text-white mb-1">
-            {currentMonth ? formatYearMonth(currentMonth) : 'No Data'}
-          </div>
-          <div className="text-sm text-gray-400">
-            Month {currentMonthIndex + 1} of {totalMonths}
-            {isPlaying && <span className="ml-2 text-cyan-400">● Playing</span>}
-          </div>
-        </div>
+        <button
+          onClick={goToNext}
+          disabled={!canGoNext}
+          className="p-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 rounded-lg"
+        >
+          <ChevronRight className="w-5 h-5 text-white" />
+        </button>
         
-        {/* Keyboard Shortcuts Help */}
-        <div className="mt-3 text-xs text-gray-500 text-center">
-          <span>Space: Play/Pause</span>
-          <span className="mx-2">•</span>
-          <span>← →: Navigate</span>
-          <span className="mx-2">•</span>
-          <span>Home/End: Jump to start/end</span>
+        <button
+          onClick={togglePlay}
+          className="p-2 bg-cyan-500 hover:bg-cyan-400 rounded-lg"
+        >
+          {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+        </button>
+      </div>
+      
+      <div className="text-center">
+        <div className="text-xl font-bold text-white">
+          {currentMonth ? formatYearMonth(currentMonth) : 'No Data'}
+        </div>
+        <div className="text-sm text-gray-400">
+          Month {currentMonthIndex + 1} of {totalMonths}
         </div>
       </div>
     </div>
