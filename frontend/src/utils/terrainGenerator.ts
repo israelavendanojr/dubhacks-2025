@@ -8,7 +8,7 @@ const KING_COUNTY_BOUNDS = {
   east: -121.0630  // Snoqualmie Pass
 };
 
-const GRID_RESOLUTION = 100; // 100x100 grid = 10,000 data points
+const GRID_RESOLUTION = 200; // 200x200 grid = 40,000 data points for smoother surface
 
 /**
  * Generate a 2D Gaussian distribution for risk hotspots

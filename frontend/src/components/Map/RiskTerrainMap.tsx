@@ -1,6 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ColumnLayer, GeoJsonLayer, TextLayer } from '@deck.gl/layers';
+import { ColumnLayer } from '@deck.gl/layers';
+import { GeoJsonLayer, TextLayer } from '@deck.gl/layers';
+import { AmbientLight, DirectionalLight, LightingEffect } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { TerrainPoint, ViewState } from '../../types/terrain.types';
@@ -22,7 +24,7 @@ interface RiskTerrainMapProps {
 }
 
 // King County view configuration
-const KING_COUNTY_VIEW: ViewState = {
+const KING_COUNTY_VIEW = {
   longitude: -122.2015,    // Center of King County
   latitude: 47.4668,
   zoom: 9.5,               // Shows full county
@@ -111,15 +113,50 @@ export function RiskTerrainMap({
   const [hoveredObject, setHoveredObject] = useState<TerrainPoint | null>(null);
   const [hoveredPollution, setHoveredPollution] = useState<AggregatedDataPoint | null>(null);
 
-  const handleViewStateChange = useCallback(({ viewState }) => {
+  // Debug: Log terrain data to verify it has proper risk scores
+  useMemo(() => {
+    if (terrainData.length > 0) {
+      console.log('Terrain data debug:', {
+        pointCount: terrainData.length,
+        samplePoints: terrainData.slice(0, 5).map(p => ({
+          lon: p.lon,
+          lat: p.lat,
+          riskScore: p.riskScore,
+          elevation: p.riskScore * 8000
+        })),
+        riskScoreRange: {
+          min: Math.min(...terrainData.map(p => p.riskScore)),
+          max: Math.max(...terrainData.map(p => p.riskScore))
+        }
+      });
+    }
+  }, [terrainData]);
+
+  const handleViewStateChange = useCallback(({ viewState }: any) => {
     setViewState(viewState);
     onViewStateChange?.(viewState);
   }, [onViewStateChange]);
 
+  // Create solid lighting effects for 3D terrain visualization
+  const lightingEffect = useMemo(() => {
+    const ambientLight = new AmbientLight({
+      color: [255, 255, 255],
+      intensity: 0.6 // Higher ambient for more solid appearance
+    });
+
+    const directionalLight = new DirectionalLight({
+      color: [255, 255, 255],
+      intensity: 1.2, // Good intensity for solid lighting
+      direction: [-0.5, -0.5, -1] // Angled light for better terrain definition
+    });
+
+    return new LightingEffect({ ambientLight, directionalLight });
+  }, []);
+
   // Create geographic layers
   const waterLayer = new GeoJsonLayer({
     id: 'water-bodies',
-    data: WATER_BODIES,
+    data: WATER_BODIES as any,
     filled: true,
     getFillColor: [30, 96, 145, 180], // Blue water color
     getLineColor: [40, 120, 180, 255],
@@ -132,8 +169,8 @@ export function RiskTerrainMap({
     id: 'landmarks',
     data: LANDMARKS,
     pickable: false,
-    getPosition: d => d.coordinates,
-    getText: d => d.name,
+    getPosition: (d: any) => d.coordinates,
+    getText: (d: any) => d.name,
     getSize: 16,
     getColor: [255, 255, 255, 200],
     getAngle: 0,
@@ -152,23 +189,27 @@ export function RiskTerrainMap({
     // 1. Water bodies (bottom layer)
     waterLayer,
     
-    // 2. Risk terrain layer
+    // 2. Risk terrain layer - Thicker columns for better visibility
     new ColumnLayer({
       id: 'risk-terrain',
       data: terrainData,
-      diskResolution: 12,
-      radius: 200, // Column width
+      diskResolution: 12, // Good resolution for smooth appearance
+      radius: 60, // Thicker radius for better visibility
       extruded: true,
       pickable: true,
       elevationScale: 1,
       getPosition: (d: TerrainPoint) => [d.lon, d.lat],
-      getElevation: (d: TerrainPoint) => d.riskScore * 3000, // Height multiplier
+      getElevation: (d: TerrainPoint) => d.riskScore * 8000, // Much higher elevation for dramatic effect
       getFillColor: (d: TerrainPoint) => getRiskColor(d.riskScore),
       material: {
-        ambient: 0.64,
-        diffuse: 0.6,
+        ambient: 0.6,
+        diffuse: 1.0,
         shininess: 32,
-        specularColor: [51, 51, 51]
+        specularColor: [50, 50, 50]
+      },
+      parameters: {
+        depthTest: true,
+        blend: false
       },
       onHover: ({ object }) => setHoveredObject(object as TerrainPoint),
       onClick: ({ object }) => setHoveredObject(object as TerrainPoint)
@@ -197,7 +238,17 @@ export function RiskTerrainMap({
         initialViewState={viewState}
         controller={true}
         layers={layers}
+        effects={[lightingEffect]}
         onViewStateChange={handleViewStateChange}
+        parameters={{
+          clearColor: [0, 0, 0, 1]
+        }}
+        glOptions={{
+          preserveDrawingBuffer: true,
+          antialias: true,
+          depth: true,
+          stencil: false
+        }}
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
@@ -206,6 +257,11 @@ export function RiskTerrainMap({
           antialias={true}
           preserveDrawingBuffer={true}
           reuseMaps={true}
+          glOptions={{
+            preserveDrawingBuffer: true,
+            antialias: true,
+            depth: true
+          }}
         />
       </DeckGL>
       
