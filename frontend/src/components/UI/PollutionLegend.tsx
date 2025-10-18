@@ -1,11 +1,12 @@
-import React from 'react';
-import { getPollutionColor, getPollutionLevel } from '../../utils/pollutionColorScale';
+import { getPollutionColor } from '../../utils/colorMapping';
+import type { ChemicalConfig } from '../../config/chemicals';
 
 interface PollutionLegendProps {
   visible: boolean;
+  chemicalConfig?: ChemicalConfig;
 }
 
-export function PollutionLegend({ visible }: PollutionLegendProps) {
+export function PollutionLegend({ visible, chemicalConfig }: PollutionLegendProps) {
   if (!visible) return null;
 
   const pollutionLevels = [
@@ -16,13 +17,41 @@ export function PollutionLegend({ visible }: PollutionLegendProps) {
     { level: 0.9, label: 'Hazardous' }
   ];
 
+  // Chemical color mapping
+  const chemicalColors = {
+    'co': { name: 'CO', color: 'rgb(239, 68, 68)' },
+    'no2': { name: 'NO₂', color: 'rgb(249, 115, 22)' },
+    'so2': { name: 'SO₂', color: 'rgb(234, 179, 8)' }
+  };
+
   return (
-    <div className="absolute bottom-32 left-4 bg-gray-900/90 backdrop-blur-sm rounded-lg p-4 shadow-xl z-30">
+    <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur-md rounded-lg p-4 shadow-xl z-30 border border-gray-700">
       <div className="text-white text-sm">
-        <div className="font-semibold mb-3">CO Pollution Levels</div>
+        <div className="font-semibold mb-3">
+          {chemicalConfig?.displayName || 'Pollution'} Levels
+        </div>
+        
+        {/* Show chemical colors when "All" is selected */}
+        {chemicalConfig?.id === 'all' && (
+          <div className="mb-3 pb-3 border-b border-gray-700">
+            <div className="text-xs text-gray-400 mb-2">Chemical Types:</div>
+            <div className="space-y-1">
+              {Object.entries(chemicalColors).map(([id, { name, color }]) => (
+                <div key={id} className="flex items-center space-x-2">
+                  <div
+                    className="w-3 h-3 rounded-full border border-white/20"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-xs">{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="space-y-2">
           {pollutionLevels.map(({ level, label }) => {
-            const color = getPollutionColor(level);
+            const color = getPollutionColor(level, chemicalConfig);
             const rgbColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
             
             return (
@@ -38,7 +67,7 @@ export function PollutionLegend({ visible }: PollutionLegendProps) {
         </div>
         <div className="mt-3 pt-3 border-t border-gray-700">
           <div className="text-xs text-gray-400">
-            Circle size indicates pollution amount
+            Circle size = concentration
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@ export const CHEMICALS: ChemicalConfig[] = [
     unit: 'ppm',
     description: 'Colorless, odorless gas from combustion',
     color: [239, 68, 68], // Red
-    dangerThreshold: 9.0
+    dangerThreshold: 0.4  // Updated based on actual data range (0-0.5 ppm)
   },
   {
     id: 'so2',
@@ -28,7 +28,7 @@ export const CHEMICALS: ChemicalConfig[] = [
     unit: 'ppb',
     description: 'Produced by volcanoes and industrial processes',
     color: [234, 179, 8], // Yellow
-    dangerThreshold: 75
+    dangerThreshold: 0.05  // Updated based on actual data range (0-0.1 ppb)
   },
   {
     id: 'no2',
@@ -38,28 +38,9 @@ export const CHEMICALS: ChemicalConfig[] = [
     unit: 'ppb',
     description: 'Reddish-brown gas from vehicle emissions',
     color: [249, 115, 22], // Orange
-    dangerThreshold: 100
-  },
-  {
-    id: 'pm25',
-    name: 'Particulate Matter 2.5',
-    displayName: 'PM2.5',
-    fileName: 'pm25_data_by_month.csv',
-    unit: 'μg/m³',
-    description: 'Fine particles that can penetrate lungs',
-    color: [168, 85, 247], // Purple
-    dangerThreshold: 35
-  },
-  {
-    id: 'o3',
-    name: 'Ozone',
-    displayName: 'O₃',
-    fileName: 'o3_data_by_month.csv',
-    unit: 'ppb',
-    description: 'Ground-level ozone from pollution reactions',
-    color: [59, 130, 246], // Blue
-    dangerThreshold: 70
+    dangerThreshold: 25  // Updated based on actual data range (0-50 ppb)
   }
+  // REMOVED: PM2.5 and O3 - no data files available
 ];
 
 // Helper to get available chemicals (only ones with CSV files in public/data)

@@ -30,6 +30,19 @@ export function useTimeline(
   const availableMonths = monthlyData.map(d => d.yearMonth);
   const currentMonth = monthlyData[currentMonthIndex] || null;
   
+  // ADD: Log when current month changes
+  useEffect(() => {
+    if (currentMonth) {
+      console.log('Timeline changed to:', {
+        index: currentMonthIndex,
+        yearMonth: currentMonth.yearMonth,
+        dataPoints: currentMonth.dataPoints.length,
+        totalReadings: currentMonth.totalReadings,
+        avgAmount: currentMonth.averageAmount.toFixed(3)
+      });
+    }
+  }, [currentMonthIndex, currentMonth]);
+  
   // Auto-advance logic
   useEffect(() => {
     if (isPlaying && totalMonths > 0) {
