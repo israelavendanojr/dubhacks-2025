@@ -58,6 +58,13 @@ const CAMERA_PRESETS = {
     zoom: 12,
     pitch: 60,
     bearing: -30
+  },
+  cityscape: {
+    longitude: -122.3321,
+    latitude: 47.6062,
+    zoom: 13,
+    pitch: 75, // Steeper angle to see 3D buildings better
+    bearing: 0
   }
 };
 
@@ -262,6 +269,50 @@ export function RiskTerrainMap({
             antialias: true,
             depth: true
           }}
+          onLoad={(event) => {
+            const map = event.target;
+            
+            // Add 3D buildings layer for cityscape background
+            map.addLayer({
+              'id': '3d-buildings',
+              'source': 'composite',
+              'source-layer': 'building',
+              'filter': ['==', 'extrude', 'true'],
+              'type': 'fill-extrusion',
+              'minzoom': 10, // Show buildings at zoom 10+
+              'paint': {
+                'fill-extrusion-color': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', 'height'],
+                  0, '#555',    // Darker for shorter buildings
+                  50, '#666',   // Medium gray for mid-height
+                  100, '#777',  // Lighter for tall buildings
+                  200, '#888'   // Lightest for very tall buildings
+                ],
+                'fill-extrusion-height': [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  10,
+                  0,
+                  10.05,
+                  ['get', 'height']
+                ],
+                'fill-extrusion-base': [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  10,
+                  0,
+                  10.05,
+                  ['get', 'min_height']
+                ],
+                'fill-extrusion-opacity': 0.8, // Good visibility but not overwhelming
+                'fill-extrusion-vertical-gradient': true // Add gradient effect for realism
+              }
+            });
+          }}
         />
       </DeckGL>
       
@@ -284,6 +335,12 @@ export function RiskTerrainMap({
           className="bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-800/90 transition-colors"
         >
           Bellevue
+        </button>
+        <button
+          onClick={() => setViewState(CAMERA_PRESETS.cityscape)}
+          className="bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-800/90 transition-colors"
+        >
+          3D Cityscape
         </button>
       </div>
 

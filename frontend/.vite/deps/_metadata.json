@@ -1,0 +1,85 @@
+{
+  "hash": "40e0756f",
+  "configHash": "ecdd6ea7",
+  "lockfileHash": "908173f4",
+  "browserHash": "e68af0de",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../../frontend/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "6eff69be",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../../frontend/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "f4751d03",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../frontend/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "8854d1ae",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../../frontend/node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "0463a3f2",
+      "needsInterop": false
+    },
+    "@deck.gl/react": {
+      "src": "../../../frontend/node_modules/@deck.gl/react/dist/index.js",
+      "file": "@deck__gl_react.js",
+      "fileHash": "c683be55",
+      "needsInterop": false
+    },
+    "@deck.gl/layers": {
+      "src": "../../../frontend/node_modules/@deck.gl/layers/dist/index.js",
+      "file": "@deck__gl_layers.js",
+      "fileHash": "17052154",
+      "needsInterop": false
+    },
+    "@deck.gl/core": {
+      "src": "../../../frontend/node_modules/@deck.gl/core/dist/index.js",
+      "file": "@deck__gl_core.js",
+      "fileHash": "bde3b3d5",
+      "needsInterop": false
+    },
+    "react-map-gl/mapbox": {
+      "src": "../../../frontend/node_modules/react-map-gl/dist/mapbox.js",
+      "file": "react-map-gl_mapbox.js",
+      "fileHash": "f7485fa0",
+      "needsInterop": false
+    },
+    "papaparse": {
+      "src": "../../../frontend/node_modules/papaparse/papaparse.min.js",
+      "file": "papaparse.js",
+      "fileHash": "bfffb32d",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "webgl-device-METU2G3H": {
+      "file": "webgl-device-METU2G3H.js"
+    },
+    "mapbox-gl-7RI5II7P": {
+      "file": "mapbox-gl-7RI5II7P.js"
+    },
+    "chunk-TILS7YI4": {
+      "file": "chunk-TILS7YI4.js"
+    },
+    "chunk-A6XW3373": {
+      "file": "chunk-A6XW3373.js"
+    },
+    "chunk-V37Z6INE": {
+      "file": "chunk-V37Z6INE.js"
+    },
+    "chunk-HKWW6SXN": {
+      "file": "chunk-HKWW6SXN.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
+    }
+  }
+}
