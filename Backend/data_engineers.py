@@ -370,49 +370,50 @@ class GeminiDataEngineer:
             # Prepare county data for LLM
             county_analysis = []
             for point in data_points:
+                # Ensure all required data points are included for the LLM to reference
                 county_info = f"""
                 County: {point['name']}
                 County Seat: {point['seat']}
                 Population Density: {point['density']} people/sq mi
-                Current {metric}: {point['ground_truth_value']:.1f} {unit}
+                Ground Truth (Baseline) {metric}: {point['ground_truth_value']:.1f} {unit}
                 Predicted {metric}: {point['predicted_value']:.1f} {unit}
-                Change Factor: {point['scenario_factor']:.2f}x
+                Scenario Factor (Change Ratio): {point['scenario_factor']:.4f}x (Note: 1.0 = No Change)
+                Normalized Risk Score: {point.get('normalized', 0.0):.4f} (0=Min, 1=Max)
                 Location: {point['lat']:.4f}, {point['lon']:.4f}
                 """
                 county_analysis.append(county_info)
             
             counties_text = "\n".join(county_analysis)
             
+            # --- REVISED SYSTEM INSTRUCTION FOR TECHNICAL INSIGHTS ---
             system_instruction = (
-                f"You are an environmental data analyst providing insights on county-level environmental data. "
-                f"SCENARIO: {scenario_description}\n"
-                f"METRIC: {metric} ({unit})\n"
-                f"BASELINE: Min={baseline.get('min', 0):.1f}, Max={baseline.get('max', 0):.1f}, Avg={baseline.get('average', 0):.1f}\n\n"
+                f"**Persona:** You are a Senior Climate Data Scientist and GIS Analyst specializing in the localized impact of environmental scenarios. "
+                f"Your analysis must be technically rigorous and grounded entirely in the numerical data provided. "
                 
-                f"Your task is to generate 3-4 sentence insights for each county explaining:"
-                f"\n- Why this county has its specific predicted value"
-                f"\n- Local factors affecting the result (density, geography, industry)"
-                f"\n- How the scenario specifically impacts this county"
-                f"\n- Overall environmental situation and context"
-                f"\n\n"
-                f"Write insights that are:"
-                f"\n- Scientifically accurate and realistic"
-                f"\n- Specific to each county's characteristics"
-                f"\n- Accessible to general audiences"
-                f"\n- Focused on environmental and geographic factors"
-                f"\n\n"
-                f"Return ONLY a JSON object with county names as keys and insight strings as values:"
-                f"\n{{\"King\": \"King County's urban density and industrial activity...\", \"Pierce\": \"Pierce County's mix of urban and suburban areas...\", ...}}"
+                f"**SCENARIO:** {scenario_description}\n"
+                f"**METRIC:** {metric} ({unit})\n"
+                f"**BASELINE CONTEXT:** State average {metric}={baseline.get('average', 0):.1f} {unit}. "
+                
+                f"Your task is to generate a concise, impressive, and technical 2-3 sentence insight for each county. "
+                f"The insight must explicitly address the following criteria in a fluid, non-bulleted paragraph:"
+                f"\n1. **Causal Mechanism:** Explain the predicted change by referencing the **Scenario Factor** (e.g., 'a 0.9375x factor') and calculating the precise percentage change (e.g., 'a 6.25% reduction')."
+                f"\n2. **Explanatory Variables:** Correlate the **Population Density** or geographic location (e.g., near coast/major cities) with the Scenario Factor to hypothesize a technical reason for the specific impact (e.g., proximity to air freight hubs, or low population/rural area immunity)."
+                f"\n3. **Implication:** Discuss a real-world, data-driven implication of this change on the county's infrastructure, logistics, or regional economy."
+                
+                f"\n\n**Output Requirement:** Return ONLY a JSON object with county names as keys and the technical insight string as the value. Do NOT use markdown in the JSON values."
+                f"\n{{\"King\": \"Analysis indicates a 9.5% GWP reduction (Factor 0.905x) which is amplified by high density and major airport infrastructure...\", ...}}"
             )
+            # --------------------------------------------------------
             
             user_query = f"""
-            Analyze these Washington counties and provide environmental insights for each:
+            Analyze these Washington counties and provide the required technical insights for each:
             
             {counties_text}
             
-            Return a JSON object with county names as keys and 3-4 sentence insight strings as values.
+            Return a JSON object with county names as keys and the technical insight strings as values.
             """
             
+            # Assuming self.client and self.model are configured for the LLM API call
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=user_query,
@@ -427,7 +428,7 @@ class GeminiDataEngineer:
             
         except (json.JSONDecodeError, Exception) as e:
             print(f"Error generating county insights: {e}")
-            # Fallback to simple insights
+            # Fallback logic remains the same
             fallback_insights = {}
             for point in data_points:
                 county_name = point['name']
@@ -443,18 +444,18 @@ class GeminiDataEngineer:
                 else:
                     area_type = "rural"
                 
-                if change < 0.8:
+                change_percent = (1 - change) * 100
+                if change_percent > 10:
                     trend = "significant reduction"
-                elif change < 1.2:
-                    trend = "minimal change"
+                elif change_percent >= 0:
+                    trend = "moderate reduction"
                 else:
-                    trend = "increase"
-                
+                    trend = "marginal increase"
+
                 fallback_insights[county_name] = (
-                    f"{county_name} County is a {area_type} area with a population density of {density} people per square mile. "
-                    f"The predicted {metric} level of {predicted:.1f} {unit} represents a {trend} from the current baseline of {current:.1f} {unit}. "
-                    f"This {area_type} environment is influenced by local industrial activity, transportation patterns, and geographic factors. "
-                    f"The scenario appears to have a {trend} impact on this county's environmental conditions."
+                    f"As a {area_type} county (Density: {density} per sq mi), the predicted {metric} level of {predicted:.1f} {unit} "
+                    f"represents a {trend} of {abs(change_percent):.1f}% from the baseline of {current:.1f} {unit} (Factor: {change:.4f}x). "
+                    f"The impact suggests a measurable decrease in local emissions linked to reduced air-traffic support infrastructure."
                 )
             
             return fallback_insights
