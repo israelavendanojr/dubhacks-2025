@@ -78,8 +78,79 @@ class DirectorofDataEngineering:
     def __init__(self, unique_latitude_longitude_file):
         self.latitude_longitude_file = unique_latitude_longitude_file
         self.client = genai.Client()
+
+    def classify_prompt_relevance(self, user_prompt):
+        """Classify the user prompt to ensure it is a valid prompt."""
+        classification_prompt = f"""
+        Determine if the user prompt is relevant to environmental data simulation, and if it makes sense to model.
+        
+        A prompt is RELEVANT if it's about:
+        - Environmental scenarios (pollution, emissions, climate change)
+        - Air quality, water quality, soil conditions
+        - Transportation impacts (cars, planes, ships)
+        - Industrial changes, policy changes affecting environment
+        - Natural disasters, weather events
+        - Energy production, renewable energy
+        - Urban planning, infrastructure changes
+        
+        A prompt MAKES SENSE TO MODEL if:
+        - There's a logical, scientifically plausible connection between the scenario and environmental impact
+        - The scenario could realistically affect pollution, emissions, or environmental metrics
+        - The impact is measurable and significant enough to model
+        
+        Examples of what DOESN'T make sense to model:
+        - "How will chewing bubblegum affect climate?" (no logical connection)
+        - "What if everyone wore red shirts?" (no environmental impact)
+        - "Impact of eating ice cream on air quality" (no scientific basis)
+        
+        User Prompt: "{user_prompt}"
+        
+        Return ONLY a valid JSON object with these exact fields:
+        - relevant: boolean
+        - makes_sense_to_model: boolean  
+        - reason: string
+        - suggestions: list of strings
+        """
+
+        try:
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=classification_prompt,
+                config={
+                    "response_mime_type": "application/json"
+                }
+            )
+            classification = json.loads(response.text)
+            
+            # Validate the response structure
+            if not isinstance(classification, dict):
+                return False
+                
+            # Check both conditions
+            is_relevant = classification.get('relevant', False)
+            makes_sense = classification.get('makes_sense_to_model', False)
+            
+            # Both must be true to proceed
+            return is_relevant and makes_sense
+            
+        except Exception as e:
+            print(f"Error classifying prompt relevance: {e}")
+            return False  # Default to safe side
+
         
     def directions(self, user_prompt):
+        classification = self.classify_prompt_relevance(user_prompt)
+        if not classification:
+            return json.dumps({
+                "error": "INVALID_PROMPT",
+                "message": "This prompt is not related to environmental data simulation. Please provide a scenario about environmental impacts, pollution, climate change, or similar topics.",
+                "suggestions": [
+                    "Try: 'What happens if we remove all electric vehicles?'",
+                    "Try: 'Impact of closing all coal power plants'",
+                    "Try: 'Effect of doubling renewable energy production'"
+                ]
+            })
+
         """Convert user prompt into structured scenario specification using Pydantic model."""
         
         system_instruction_text = (
@@ -152,9 +223,23 @@ class GeminiDataEngineer:
             dummy_file: Path to CSV file with location data
             
         Returns:
-            Dict containing simulated data with CountyDataPoint objects
+            Dict containing simulated data with CountyDataPoint objects, or error dict
         """
         import random
+        
+        # Check if director returned an error response
+        try:
+            parsed_prompt = json.loads(director_prompt)
+            if "error" in parsed_prompt:
+                # Return the error directly to stop processing
+                return parsed_prompt
+        except json.JSONDecodeError:
+            # If it's not valid JSON at all, return an error
+            return {
+                "error": "INVALID_SPECIFICATION",
+                "message": "Director failed to generate a valid specification.",
+                "suggestions": ["Please try rephrasing your prompt."]
+            }
         
         print(f"Generating simulated data for director prompt: {director_prompt}")
         
