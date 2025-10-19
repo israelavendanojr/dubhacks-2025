@@ -4,9 +4,83 @@ import pandas as pd
 import json
 import os
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Literal, Dict
 
 # Ensure environment variables are loaded for the client initialization
 load_dotenv()
+
+# Define valid metric-unit combinations
+METRIC_UNIT_MAPPING: Dict[str, List[str]] = {
+    "NO2": ["ppb", "ppm", "μg/m³"],
+    "NOx": ["ppb", "ppm", "μg/m³"],
+    "PM2.5": ["μg/m³", "mg/m³"],
+    "PM10": ["μg/m³", "mg/m³"],
+    "O3": ["ppb", "ppm"],
+    "SO2": ["ppb", "ppm", "μg/m³"],
+    "CO": ["ppm", "mg/m³"],
+    "Noise Level": ["dB"],
+    "Temperature": ["°C", "°F"],
+    "Humidity": ["%"],
+    "Wind Speed": ["m/s", "mph", "km/h"]
+}
+
+class ScenarioSpecification(BaseModel):
+    """Pydantic model for the Director's structured output."""
+    
+    target_metric: Literal[
+        "NO2", "NOx", "PM2.5", "PM10", "O3", "SO2", "CO", 
+        "Noise Level", "Temperature", "Humidity", "Wind Speed"
+    ] = Field(
+        description="The environmental metric to simulate"
+    )
+    
+    unit: Literal[
+        "ppb", "ppm", "μg/m³", "mg/m³", "dB", "°C", "°F", 
+        "%", "m/s", "mph", "km/h", "Pa", "hPa"
+    ] = Field(
+        description="The appropriate unit for the metric"
+    )
+    
+    target_timeframe: str = Field(
+        description="The target year or timeframe for the simulation (e.g., '2025', 'next year')"
+    )
+    
+    base_mean: float = Field(
+        ge=0,
+        description="The base mean value for pollution amounts that aligns with scenario severity"
+    )
+    
+    standard_deviation: float = Field(
+        ge=0,
+        description="The standard deviation for the pollution distribution"
+    )
+    
+    scaling_rules: List[str] = Field(
+        min_length=2,
+        description="At least two concrete, quantifiable scaling rules for spatial variation"
+    )
+    
+    scenario_description: str = Field(
+        min_length=10,
+        max_length=500,
+        description="A brief description of the scenario being simulated"
+    )
+    
+    @field_validator('unit')
+    @classmethod
+    def validate_unit_metric_pair(cls, v, info):
+        """Validate that the unit is compatible with the target metric."""
+        if 'target_metric' in info.data:
+            metric = info.data['target_metric']
+            valid_units = METRIC_UNIT_MAPPING.get(metric, [])
+            if v not in valid_units:
+                valid_units_str = ', '.join(valid_units)
+                raise ValueError(
+                    f"Unit '{v}' is not valid for metric '{metric}'. "
+                    f"Valid units for {metric} are: {valid_units_str}"
+                )
+        return v
 
 class DirectorofDataEngineering:
     """
@@ -20,7 +94,8 @@ class DirectorofDataEngineering:
         self.client = genai.Client()
         
     def directions(self, user_prompt):
-        # pydantic? 
+        """Convert user prompt into structured scenario specification using Pydantic model."""
+        
         system_instruction_text = (
             "You are a Data Simulation Director specializing in environmental data engineering. "
             "Your primary and sole task is to take a client's request (User Prompt) and convert it into "
@@ -28,44 +103,103 @@ class DirectorofDataEngineering:
             "synthetic data generation system (the Data Engineer). "
             "The simulation takes place in the Puget Sound / King County region, WA. "
             
-            "\n\nYour output MUST be a complete, well-defined prompt containing all quantifiable parameters."
+            "You must analyze the user prompt and extract the following information:"
+            "\n1. Target Metric: Choose from: NO2, NOx, PM2.5, PM10, O3, SO2, CO, Noise Level, Temperature, Humidity, Wind Speed"
+            "\n2. Unit: MUST be compatible with the metric. Valid combinations:"
+            "\n   - NO2/NOx: ppb, ppm, μg/m³"
+            "\n   - PM2.5/PM10: μg/m³, mg/m³"
+            "\n   - O3: ppb, ppm"
+            "\n   - SO2: ppb, ppm, μg/m³"
+            "\n   - CO: ppm, mg/m³"
+            "\n   - Noise Level: dB"
+            "\n   - Temperature: °C, °F"
+            "\n   - Humidity: %"
+            "\n   - Wind Speed: m/s, mph, km/h"
+            "\n3. Timeframe: Target year (assume next year if not specified)"
+            "\n4. Base Statistics: Mean and standard deviation based on scenario severity (both must be ≥ 0)"
+            "\n5. Scaling Rules: At least 2 spatial variation rules (urban vs rural, etc.)"
+            "\n6. Description: Brief summary of the scenario (10-500 characters)"
             
-            "\n\nMANDATORY INFERENCES AND DATA POINTS:"
-            "\n1. Target Metric and Unit: You MUST explicitly define the environmental metric (e.g., 'NO2', 'PM2.5', 'Noise Level') and its appropriate unit (e.g., 'ppb', 'μg/m³', 'dB')."
-            "\n2. Target Timeframe: If the client does not specify the time, you MUST assume a plausible future date (e.g., the next calendar year) and state the assumed Year clearly. Do not ask for the date."
-            "\n3. Base Statistics: You MUST determine and define a 'Base Mean' and 'Standard Deviation' for the pollution amount that aligns with the scenario's severity (e.g., low-severity scenario = low mean)."
-            "\n4. Spatial Scaling Rules: You MUST define at least two concrete, quantifiable 'Scaling Rules' that describe how pollution intensity should vary spatially (e.g., '1.5x increase in the urban center near I-5' or '40% decrease near protected park lands')."
-            
-            "\n\nYour final response MUST contain only the structured specification, starting with 'Scenario Specification:'. Do not include any commentary or surrounding text."
+            "Return ONLY a valid JSON object with these exact fields:"
+            "\n- target_metric: string (from the list above)"
+            "\n- unit: string (compatible with the metric)"
+            "\n- target_timeframe: string"
+            "\n- base_mean: number (≥ 0)"
+            "\n- standard_deviation: number (≥ 0)"
+            "\n- scaling_rules: array of strings (minimum 2 items)"
+            "\n- scenario_description: string (10-500 characters)"
         )
         
+        # Create JSON schema from Pydantic model
+        json_schema = ScenarioSpecification.model_json_schema()
+        
         config = types.GenerateContentConfig(
-            system_instruction=system_instruction_text
+            system_instruction=system_instruction_text,
+            response_mime_type="application/json"
         )
         
         response = self.client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-2.5-flash-lite",
             contents=[user_prompt],
             config=config
         )
-        return response.text
+        
+        # Parse and validate the response using Pydantic
+        try:
+            specification_data = json.loads(response.text)
+            validated_spec = ScenarioSpecification(**specification_data)
+            return validated_spec.model_dump_json(indent=2)
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback to raw text if parsing fails
+            return response.text
     
     def pass_dummy_csv(self):
         return self.latitude_longitude_file
+    
+    @staticmethod
+    def get_specification_model():
+        """Return the Pydantic model for scenario specifications."""
+        return ScenarioSpecification
+    
+    @staticmethod
+    def get_valid_metrics():
+        """Return list of valid target metrics."""
+        return [
+            "NO2", "NOx", "PM2.5", "PM10", "O3", "SO2", "CO", 
+            "Noise Level", "Temperature", "Humidity", "Wind Speed"
+        ]
+    
+    @staticmethod
+    def get_valid_units():
+        """Return list of all valid units."""
+        return [
+            "ppb", "ppm", "μg/m³", "mg/m³", "dB", "°C", "°F", 
+            "%", "m/s", "mph", "km/h", "Pa", "hPa"
+        ]
+    
+    @staticmethod
+    def get_valid_units_for_metric(metric: str) -> List[str]:
+        """Return valid units for a specific metric."""
+        return METRIC_UNIT_MAPPING.get(metric, [])
+    
+    @staticmethod
+    def get_metric_unit_mapping():
+        """Return the complete metric-unit mapping."""
+        return METRIC_UNIT_MAPPING
 
 class GeminiDataEngineer:
     
     def __init__(self):
         self.client = genai.Client()
-        self.model = "gemini-2.5-pro"
+        self.model = "gemini-2.5-flash-lite"
         
     def simulate(self, director_prompt, dummy_file):
         
         # Load the mandatory latitude/longitude coordinates
         df_input = pd.read_csv(dummy_file)
-        # RENAMED COLUMNS for cleaner JSON keys
+        # RENAMED COLUMNS for cleaner JSON keys, include location type for factual grounding
         unique_locations = df_input.rename(
-            columns={'Latitude': 'lat', 'Longitude': 'lon'}
+            columns={'Latitude': 'lat', 'Longitude': 'lon', 'Location_Type': 'location_type'}
         ).drop_duplicates()
         
         # Convert the location list to JSON
@@ -78,10 +212,17 @@ class GeminiDataEngineer:
             "You MUST generate a list of JSON objects where each object corresponds EXACTLY to one of the "
             "mandatory locations provided. You must invent a realistic 'value' (Pollutant Amount) "
             "based on the Director's request and the geographic location. "
+            
+            "IMPORTANT: Use the location_type field (urban/suburban/rural) to factually ground your values: "
+            "- URBAN areas should have higher pollution values (traffic, industry, density) "
+            "- SUBURBAN areas should have medium pollution values (some traffic, residential) "
+            "- RURAL areas should have lower pollution values (natural, less traffic) "
+            
             "Your output MUST strictly adhere to the provided JSON schema."
         )
         
         # --- Minimal JSON Schema ---
+        # return blueprint
         minimal_json_schema = {
             "type": "object",
             "properties": {
@@ -107,12 +248,17 @@ class GeminiDataEngineer:
                 Director's Prompt: {director_prompt}
 
                 Mandatory Locations (you must generate data for ALL of these):
+                Each location includes lat, lon, and location_type (urban/suburban/rural).
+                Use the location_type to factually ground your pollution values.
                 {location_list}
 
                 Please generate simulated data for all the mandatory locations above. 
                 Return ONLY a valid JSON object matching the schema with metric, unit, and dataPoints.
                 """
-        
+        print("--------------------------------")
+        print(director_prompt)
+        print(location_list)
+        print("--------------------------------")
         response = self.client.models.generate_content(
             model=self.model,
             contents=user_query,
