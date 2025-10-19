@@ -11,6 +11,12 @@ import { getRiskColor, getRiskLevel, getExaggeratedHeight } from '../../utils/co
 interface RiskTerrainMapProps {
   enrichedGeoJson: FeatureCollection | null; // New - enriched GeoJSON data
   isGenerating: boolean;
+  onCountyHover?: (countyData: {
+    name: string;
+    riskScore: number;
+    riskLevel: string;
+    predictedValue: number;
+  } | null) => void;
 }
 
 // Washington State view configuration - optimized for county boundary visualization
@@ -30,7 +36,8 @@ const WASHINGTON_STATE_VIEW = {
 
 export function RiskTerrainMap({ 
   enrichedGeoJson, // New - enriched GeoJSON data
-  isGenerating
+  isGenerating,
+  onCountyHover
 }: RiskTerrainMapProps) {
   const [viewState, setViewState] = useState<ViewState>(WASHINGTON_STATE_VIEW);
   const [hoveredObject, setHoveredObject] = useState<Feature | null>(null);
@@ -105,13 +112,27 @@ export function RiskTerrainMap({
       // Height Mapping: Use the riskScore property with dramatic scaling
       getElevation: (f: any) => {
         const riskScore = f.properties?.riskScore || 0;
-        return getExaggeratedHeight(riskScore);
+        const baseHeight = getExaggeratedHeight(riskScore);
+        // Add 10% height on hover for subtle feedback
+        return hoveredObject?.properties?.CNTY === f.properties?.CNTY 
+          ? baseHeight * 1.1 
+          : baseHeight;
       },
       
       // Color Mapping: Use the riskScore property for color gradient
       getFillColor: (f: any) => {
         const riskScore = f.properties?.riskScore || 0;
-        return getRiskColor(riskScore);
+        const baseColor = getRiskColor(riskScore);
+        // Brighten on hover
+        if (hoveredObject?.properties?.CNTY === f.properties?.CNTY) {
+          return [
+            Math.min(255, baseColor[0] * 1.2),
+            Math.min(255, baseColor[1] * 1.2),
+            Math.min(255, baseColor[2] * 1.2),
+            255
+          ];
+        }
+        return baseColor;
       },
       
       // Border styling
@@ -122,7 +143,20 @@ export function RiskTerrainMap({
       pickable: true,
       opacity: 0.8,
       onHover: ({ object }) => {
-        if (object) setHoveredObject(object as Feature);
+        setHoveredObject(object as Feature);
+        
+        // Send data to info panel
+        if (object && onCountyHover) {
+          const props = object.properties;
+          onCountyHover({
+            name: props?.CNTY || props?.COUNTY || props?.NAME || 'Unknown',
+            riskScore: props?.riskScore || 0,
+            riskLevel: getRiskLevel(props?.riskScore || 0),
+            predictedValue: props?.predictedValue || 0,
+          });
+        } else if (!object && onCountyHover) {
+          onCountyHover(null);
+        }
       },
       onClick: ({ object }) => {
         if (object) setHoveredObject(object as Feature);
@@ -132,7 +166,7 @@ export function RiskTerrainMap({
     console.log('GeoJsonLayer created:', geoJsonLayer);
     console.log('Returning layers array with', 1, 'layer');
     return [geoJsonLayer];
-  }, [enrichedGeoJson]);
+  }, [enrichedGeoJson, hoveredObject, onCountyHover]);
 
   // Show fallback UI if WebGL fails
   if (webglError) {
@@ -168,7 +202,7 @@ export function RiskTerrainMap({
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
-          mapStyle="mapbox://styles/mapbox/outdoors-v12"
+          mapStyle="mapbox://styles/mapbox/dark-v11"
           style={{ width: '100%', height: '100%' }}
           antialias={true}
           preserveDrawingBuffer={true}
@@ -179,44 +213,12 @@ export function RiskTerrainMap({
         />
       </DeckGL>
       
-      {/* Loading Overlay */}
+      {/* Simple loading overlay */}
       {isGenerating && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-          <div className="bg-gray-900 rounded-lg p-6 flex items-center space-x-3">
-            <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-white font-semibold">Generating 3D Terrain...</span>
-          </div>
-        </div>
-      )}
-
-      {/* Risk Terrain Tooltip */}
-      {hoveredObject && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl z-30 pointer-events-none">
-          <div className="text-white text-sm">
-            <div className="font-semibold mb-2">County Risk Analysis</div>
-            <div className="space-y-1">
-              <div>County: <span className="text-cyan-400 font-bold">
-                {hoveredObject.properties?.CNTY || 
-                 hoveredObject.properties?.COUNTY || 
-                 hoveredObject.properties?.NAME || 
-                 hoveredObject.properties?.COUNTY_NAME ||
-                 hoveredObject.properties?.CNTY_NM ||
-                 hoveredObject.properties?.COUNTY_NM ||
-                 'Unknown'}
-              </span></div>
-              <div>Overall Risk: <span className="text-cyan-400 font-bold">{Math.round((hoveredObject.properties?.riskScore || 0) * 100)}%</span></div>
-              <div>Risk Level: <span className="text-cyan-400">{getRiskLevel(hoveredObject.properties?.riskScore || 0)}</span></div>
-              {hoveredObject.properties?.predictedValue !== undefined && (
-                <div>Predicted Value: <span className="text-cyan-400">{hoveredObject.properties.predictedValue.toFixed(2)}</span></div>
-              )}
-              {hoveredObject.properties?.apiData && (
-                <>
-                  <div className="text-xs text-gray-400 mt-2">Additional Data:</div>
-                  <div className="text-xs">Density: {hoveredObject.properties.apiData.density?.toFixed(2) || 'N/A'}</div>
-                  <div className="text-xs">Ground Truth: {hoveredObject.properties.apiData.ground_truth_value?.toFixed(2) || 'N/A'}</div>
-                </>
-              )}
-            </div>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-white font-semibold">Generating Terrain...</span>
           </div>
         </div>
       )}

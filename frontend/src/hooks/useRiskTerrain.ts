@@ -8,6 +8,11 @@ export function useRiskTerrain() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainPoint[]>([]);
   const [enrichedGeoJson, setEnrichedGeoJson] = useState<any>(null);
+  const [currentData, setCurrentData] = useState<{
+    metric: string;
+    unit: string;
+    description: string;
+  } | null>(null);
   
   // Function to generate enriched GeoJSON from API county data
   const loadTerrainFromAPI = useCallback(async (apiResponse: SimulationResponse) => {
@@ -70,6 +75,13 @@ export function useRiskTerrain() {
         setEnrichedGeoJson(fallbackGeoJson);
       }
       
+      // Store current metric info
+      setCurrentData({
+        metric: apiResponse.data.metric,
+        unit: apiResponse.data.unit,
+        description: apiResponse.data.scenario_description,
+      });
+      
       // For backward compatibility, also convert to terrain points (will be removed in next phase)
       const columnData = convertCountyDataToColumns(apiResponse.data.dataPoints, false, 39);
       setTerrainData(columnData);
@@ -86,6 +98,7 @@ export function useRiskTerrain() {
     terrainData, // Legacy - will be removed
     enrichedGeoJson, // New - enriched GeoJSON data
     isGenerating,
+    currentData, // New - expose current data
     loadTerrainFromAPI  // Expose this to PromptInterface
   };
 }
