@@ -50,14 +50,15 @@ const convertArcGisToGeoJson = (arcgisData: any): GeoJsonCollection => {
                 properties: feature.attributes || {}
             };
             
-            // Debug logging for first few features
-            if (index < 3) {
-                console.log(`geojsonFetcher.ts:convertArcGisToGeoJson:${index}`, "Converting feature:", {
-                    originalGeometry: feature.geometry,
-                    originalAttributes: feature.attributes,
-                    convertedFeature: geoJsonFeature
-                });
-            }
+        // Debug logging for first few features
+        if (index < 3) {
+            console.log(`geojsonFetcher.ts:convertArcGisToGeoJson:${index}`, "Converting feature:", {
+                originalGeometry: feature.geometry,
+                originalAttributes: feature.attributes,
+                convertedFeature: geoJsonFeature,
+                allAttributeKeys: Object.keys(feature.attributes || {})
+            });
+        }
             
             return geoJsonFeature;
         })
@@ -184,6 +185,15 @@ export const enrichGeoJsonWithRisk = (geoJson: GeoJsonCollection | null, apiData
     );
     
     console.log("geojsonFetcher.ts:119", "Risk data lookup keys:", Array.from(riskDataLookup.keys()));
+    
+    // Log all available property keys from the first feature to help debug
+    if (geoJson.features.length > 0) {
+        const firstFeature = geoJson.features[0];
+        console.log("geojsonFetcher.ts:120", "First feature properties:", {
+            allKeys: Object.keys(firstFeature.properties || {}),
+            allValues: firstFeature.properties
+        });
+    }
 
     const enrichedFeatures = geoJson.features.map((feature: WADNRFeature, index: number) => {
         
@@ -199,8 +209,35 @@ export const enrichGeoJsonWithRisk = (geoJson: GeoJsonCollection | null, apiData
             };
         }
 
-        // 2. Identify the county name field. WADNR uses CNTY or JURNM.
-        const countyName = featureAttributes.CNTY || featureAttributes.JURNM || 'UNKNOWN';
+        // 2. Identify the county name field - try multiple possible field names
+        const possibleCountyFields = [
+            'CNTY', 'JURNM', 'COUNTY_NAME', 'NAME', 'COUNTY', 'CNTY_NM', 'COUNTY_NM',
+            'JURISDICTION', 'JURISDICTION_NAME', 'COUNTY_NAM', 'CNTY_NAME', 'JURISDICTION_NM',
+            'JURISDICTION_NAM', 'JUR_NM', 'JUR_NAM', 'JURISDICTION_NAME_1', 'COUNTY_NAME_1'
+        ];
+        
+        let countyName = 'UNKNOWN';
+        for (const field of possibleCountyFields) {
+            if (featureAttributes[field]) {
+                countyName = featureAttributes[field];
+                break;
+            }
+        }
+        
+        // If still unknown, try to find any field that might contain a county name
+        if (countyName === 'UNKNOWN') {
+            for (const [key, value] of Object.entries(featureAttributes)) {
+                if (typeof value === 'string' && value.length > 0) {
+                    // Check if this value matches any of our API county names
+                    const normalizedValue = value.toUpperCase().replace(/ COUNTY/g, '').trim();
+                    if (riskDataLookup.has(normalizedValue)) {
+                        countyName = value;
+                        console.log(`geojsonFetcher.ts:foundCountyName`, `Found county name in field '${key}': ${value}`);
+                        break;
+                    }
+                }
+            }
+        }
         
         // 3. Normalize the name for robust matching (e.g., "King County" vs "King")
         const matchingKey = String(countyName).toUpperCase().replace(/ COUNTY/g, '').trim();
@@ -211,7 +248,10 @@ export const enrichGeoJsonWithRisk = (geoJson: GeoJsonCollection | null, apiData
                 originalCountyName: countyName,
                 matchingKey: matchingKey,
                 hasMatch: riskDataLookup.has(matchingKey),
-                allProperties: Object.keys(featureAttributes)
+                allProperties: Object.keys(featureAttributes),
+                allPropertyValues: featureAttributes,
+                // Show the first few property values to help identify the county name field
+                sampleValues: Object.entries(featureAttributes).slice(0, 10).map(([key, value]) => `${key}: ${value}`)
             });
         }
 
@@ -260,6 +300,53 @@ export const enrichGeoJsonWithRisk = (geoJson: GeoJsonCollection | null, apiData
     });
     
     return enrichedGeoJson;
+};
+
+/**
+ * Fallback function to create simple county boundaries from API data
+ * This creates basic rectangular boundaries around each county's coordinates
+ */
+export const createFallbackCountyGeoJson = (apiDataPoints: ApiDataPoint[]): GeoJsonCollection => {
+    console.log("geojsonFetcher.ts:createFallbackCountyGeoJson", "Creating fallback county boundaries from API data");
+    
+    const features = apiDataPoints.map((point) => {
+        // Create a more realistic county boundary using a hexagon shape
+        const lat = (point as any).lat;
+        const lon = (point as any).lon;
+        const size = 0.4; // Approximate county size in degrees
+        
+        // Create a hexagon shape for more realistic county appearance
+        const hexagonPoints = [];
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3; // 60 degrees per side
+            const x = lon + (size * Math.cos(angle));
+            const y = lat + (size * Math.sin(angle));
+            hexagonPoints.push([x, y]);
+        }
+        // Close the polygon
+        hexagonPoints.push(hexagonPoints[0]);
+        
+        const geometry = {
+            type: 'Polygon',
+            coordinates: [hexagonPoints]
+        };
+        
+        return {
+            type: 'Feature' as const,
+            geometry,
+            properties: {
+                CNTY: point.name,
+                riskScore: point.normalized,
+                predictedValue: point.predicted_value,
+                isDataAvailable: true
+            }
+        } as WADNRFeature;
+    });
+    
+    return {
+        type: 'FeatureCollection',
+        features
+    };
 };
 
 // --- Add this to hold the static GeoJSON data for the application ---

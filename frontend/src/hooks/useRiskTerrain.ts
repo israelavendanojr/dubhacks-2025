@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { TerrainPoint } from '../types/terrain.types';
 import type { SimulationResponse } from '../utils/apiClient';
-import { fetchGeoJsonData, enrichGeoJsonWithRisk } from '../utils/geojsonFetcher';
+import { fetchGeoJsonData, enrichGeoJsonWithRisk, createFallbackCountyGeoJson } from '../utils/geojsonFetcher';
 import { convertCountyDataToColumns } from '../utils/dataInterpolation';
 
 export function useRiskTerrain() {
@@ -40,24 +40,34 @@ export function useRiskTerrain() {
       console.log('=== ENRICHING GEOJSON WITH RISK DATA ===');
       const enriched = enrichGeoJsonWithRisk(countyGeoJson, apiResponse.data.dataPoints);
       
-      if (enriched) {
-        console.log('=== GEOJSON ENRICHMENT COMPLETE ===');
-        console.log('Total Features:', enriched.features.length);
-        console.log('Features with Risk Data:', enriched.features.filter(f => (f.properties?.riskScore ?? 0) > 0).length);
-        console.log('Risk Score Range:', {
-          min: Math.min(...enriched.features.map(f => f.properties?.riskScore ?? 0)),
-          max: Math.max(...enriched.features.map(f => f.properties?.riskScore ?? 0))
-        });
-        console.log('Sample Enriched Features:', enriched.features.slice(0, 3).map(f => ({
-          county: f.properties?.CNTY,
-          riskScore: f.properties?.riskScore,
-          predictedValue: f.properties?.predictedValue
-        })));
+      if (enriched && enriched.features.length > 0) {
+        const featuresWithData = enriched.features.filter(f => (f.properties?.riskScore ?? 0) > 0);
         
-        // Set the enriched GeoJSON data
-        setEnrichedGeoJson(enriched);
+        if (featuresWithData.length > 0) {
+          console.log('=== GEOJSON ENRICHMENT COMPLETE ===');
+          console.log('Total Features:', enriched.features.length);
+          console.log('Features with Risk Data:', featuresWithData.length);
+          console.log('Risk Score Range:', {
+            min: Math.min(...enriched.features.map(f => f.properties?.riskScore ?? 0)),
+            max: Math.max(...enriched.features.map(f => f.properties?.riskScore ?? 0))
+          });
+          console.log('Sample Enriched Features:', enriched.features.slice(0, 3).map(f => ({
+            county: f.properties?.CNTY,
+            riskScore: f.properties?.riskScore,
+            predictedValue: f.properties?.predictedValue
+          })));
+          
+          // Set the enriched GeoJSON data
+          setEnrichedGeoJson(enriched);
+        } else {
+          console.warn('No features with risk data found - using fallback county boundaries');
+          const fallbackGeoJson = createFallbackCountyGeoJson(apiResponse.data.dataPoints);
+          setEnrichedGeoJson(fallbackGeoJson);
+        }
       } else {
-        console.warn('GeoJSON enrichment returned null - falling back to legacy terrain system');
+        console.warn('GeoJSON enrichment failed - using fallback county boundaries');
+        const fallbackGeoJson = createFallbackCountyGeoJson(apiResponse.data.dataPoints);
+        setEnrichedGeoJson(fallbackGeoJson);
       }
       
       // For backward compatibility, also convert to terrain points (will be removed in next phase)
