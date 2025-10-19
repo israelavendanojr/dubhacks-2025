@@ -16,7 +16,7 @@ class DirectorofDataEngineering:
     def __init__(self, unique_latitude_longitude_file):
         # We use a client attribute here, but initialize it inside the method 
         # to ensure it's available when the method is called.
-        self.latitude_longitude_file = unique_lat_longitude_file
+        self.latitude_longitude_file = unique_latitude_longitude_file
         self.client = genai.Client()
         
     def directions(self, user_prompt):
@@ -44,7 +44,7 @@ class DirectorofDataEngineering:
         )
         
         response = self.client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-2.5-flash",
             contents=[user_prompt],
             config=config
         )
@@ -57,32 +57,31 @@ class GeminiDataEngineer:
     
     def __init__(self):
         self.client = genai.Client()
-        self.model = "gemini-2.5-pro"
+        self.model = "gemini-2.5-flash"
         
     def simulate(self, director_prompt, dummy_file):
         
-        # Load the mandatory latitude/longitude coordinates and LocationType
+        # Load the mandatory latitude/longitude coordinates
         df_input = pd.read_csv(dummy_file)
         # RENAMED COLUMNS for cleaner JSON keys
         unique_locations = df_input.rename(
-            columns={'Latitude': 'lat', 'Longitude': 'lon', 'LocationType': 'type'}
+            columns={'Latitude': 'lat', 'Longitude': 'lon'}
         ).drop_duplicates()
         
-        # Convert the enriched location list to JSON
+        # Convert the location list to JSON
         location_list = unique_locations.to_json(orient='records', indent=2)
         
-        # --- System Instruction (MANDATORY REASONING) ---
+        # --- System Instruction ---
         system_instruction = (
             "You are a highly skilled, freelance Data Engineer using Gemini Pro. "
             "Your task is to take the director's prompt and a list of mandatory output locations. "
             "You MUST generate a list of JSON objects where each object corresponds EXACTLY to one of the "
             "mandatory locations provided. You must invent a realistic 'value' (Pollutant Amount) "
-            "based on the **Director's request** and the **specific 'type' of location** (e.g., Downtown, Industrial Zone). "
-            "Crucially, you MUST include a concise **'reasoning'** string explaining why the generated 'value' is appropriate for that specific location and scenario. "
+            "based on the Director's request and the geographic location. "
             "Your output MUST strictly adhere to the provided JSON schema."
         )
         
-        # --- Minimal JSON Schema (INCLUDE REASONING) ---
+        # --- Minimal JSON Schema ---
         minimal_json_schema = {
             "type": "object",
             "properties": {
@@ -95,10 +94,9 @@ class GeminiDataEngineer:
                         "properties": {
                             "lat": {"type": "number"},
                             "lon": {"type": "number"},
-                            "value": {"type": "number"},
-                            "reasoning": {"type": "string"} # LLM-generated justification
+                            "value": {"type": "number"}
                         },
-                        "required": ["lat", "lon", "value", "reasoning"]
+                        "required": ["lat", "lon", "value"]
                     }
                 }
             },
@@ -108,7 +106,7 @@ class GeminiDataEngineer:
         user_query = f"""
                 Director's Prompt: {director_prompt}
 
-                Mandatory Locations (you must generate data for ALL of these, use the 'type' field for reasoning):
+                Mandatory Locations (you must generate data for ALL of these):
                 {location_list}
 
                 Please generate simulated data for all the mandatory locations above. 
@@ -127,7 +125,7 @@ class GeminiDataEngineer:
         
         simulated_data = json.loads(response.text)
         
-        # Post-processing: Normalization and Re-joining Location Type
+        # Post-processing: Normalization
         data_points = simulated_data.get("dataPoints", [])
         
         if not data_points:
@@ -140,19 +138,13 @@ class GeminiDataEngineer:
         max_val = max(values)
         range_val = max_val - min_val
         
-        # Create a dictionary for quick lookup by (lat, lon)
-        location_map = {(row['lat'], row['lon']): row['type'] for index, row in unique_locations.iterrows()}
-        
-        # Add normalized values and the original 'type' back to each data point
+        # Add normalized values to each data point
         for point in data_points:
             # Add normalized value (0 to 1 scale)
             if range_val == 0:
                 point["normalized"] = 0.5
             else:
                 point["normalized"] = (point["value"] - min_val) / range_val
-            
-            # Re-join the LocationType (crucial for front-end labeling and tooltips)
-            point["locationType"] = location_map.get((point.get('lat'), point.get('lon')), 'Unknown Location')
             
         # Add baseline statistics
         simulated_data["baseline"] = {

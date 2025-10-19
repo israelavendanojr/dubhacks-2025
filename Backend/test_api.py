@@ -16,16 +16,16 @@ def test_api():
     
     # First test basic connectivity
     try:
-        print("🔍 Testing basic connectivity...")
+        print("Testing basic connectivity...")
         health_response = requests.get(f"{base_url}/health", timeout=5)
         print(f"Health check status: {health_response.status_code}")
         if health_response.status_code == 200:
-            print("✅ Server is running and responding")
+            print("Server is running and responding")
         else:
-            print("❌ Server health check failed")
+            print("Server health check failed")
             return
     except Exception as e:
-        print(f"❌ Cannot connect to server: {e}")
+        print(f"Cannot connect to server: {e}")
         return
     
     # Sample test data
@@ -55,10 +55,10 @@ def test_api():
         
         if response.status_code == 200:
             data = response.json()
-            print("✅ API Response:")
+            print("API Response:")
             print(json.dumps(data, indent=2))
         else:
-            print(f"❌ API Test Failed!")
+            print(f"API Test Failed!")
             print(f"Status Code: {response.status_code}")
             print(f"Response Text: {response.text}")
             print(f"Response Content: {response.content}")
