@@ -1,11 +1,11 @@
 import type { RiskWeights, TerrainPoint, GridCell } from '../types/terrain.types';
 
-// King County bounds
-const KING_COUNTY_BOUNDS = {
-  north: 47.7776,  // Shoreline
-  south: 47.1556,  // Auburn
-  west: -122.5413, // Puget Sound
-  east: -121.0630  // Snoqualmie Pass
+// Washington State bounds (expanded from King County)
+const WASHINGTON_STATE_BOUNDS = {
+  north: 49.0,    // Canadian border
+  south: 45.5,    // Oregon border  
+  west: -124.8,   // Pacific coast
+  east: -116.9    // Idaho border
 };
 
 const GRID_RESOLUTION = 200; // 200x200 grid = 40,000 data points for smoother surface
@@ -103,18 +103,18 @@ function calculateRiskScore(cell: GridCell, weights: RiskWeights): number {
 }
 
 /**
- * Generate the complete terrain data for King County
+ * Generate the complete terrain data for Washington State
  */
 export function generateRiskTerrain(weights: RiskWeights): TerrainPoint[] {
   const terrainData: TerrainPoint[] = [];
   
-  const latStep = (KING_COUNTY_BOUNDS.north - KING_COUNTY_BOUNDS.south) / GRID_RESOLUTION;
-  const lonStep = (KING_COUNTY_BOUNDS.east - KING_COUNTY_BOUNDS.west) / GRID_RESOLUTION;
+  const latStep = (WASHINGTON_STATE_BOUNDS.north - WASHINGTON_STATE_BOUNDS.south) / GRID_RESOLUTION;
+  const lonStep = (WASHINGTON_STATE_BOUNDS.east - WASHINGTON_STATE_BOUNDS.west) / GRID_RESOLUTION;
   
   for (let y = 0; y < GRID_RESOLUTION; y++) {
     for (let x = 0; x < GRID_RESOLUTION; x++) {
-      const lat = KING_COUNTY_BOUNDS.south + y * latStep;
-      const lon = KING_COUNTY_BOUNDS.west + x * lonStep;
+      const lat = WASHINGTON_STATE_BOUNDS.south + y * latStep;
+      const lon = WASHINGTON_STATE_BOUNDS.west + x * lonStep;
       
       const cell: GridCell = { lat, lon, x, y };
       

@@ -3,14 +3,14 @@ import { PromptInterface } from './components/PromptInterface';
 import { useRiskTerrain } from './hooks/useRiskTerrain';
 
 function App() {
-  const { terrainData, isGenerating, loadTerrainFromAPI } = useRiskTerrain();
+  const { enrichedGeoJson, isGenerating, loadTerrainFromAPI } = useRiskTerrain();
 
   return (
     <div className="w-full h-screen bg-black overflow-hidden flex flex-row">
       {/* Left Panel - 3D Terrain Map (70%) */}
       <div className="w-[70%] h-full">
         <RiskTerrainMap 
-          terrainData={terrainData}
+          enrichedGeoJson={enrichedGeoJson} // New - enriched GeoJSON data
           isGenerating={isGenerating}
         />
       </div>

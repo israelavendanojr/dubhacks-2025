@@ -1,25 +1,26 @@
 import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ColumnLayer } from '@deck.gl/layers';
+import { GeoJsonLayer } from '@deck.gl/layers';
 import { AmbientLight, DirectionalLight, LightingEffect } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import type { TerrainPoint, ViewState } from '../../types/terrain.types';
+import type { ViewState } from '../../types/terrain.types';
+import type { FeatureCollection, Feature } from 'geojson';
 import { getRiskColor, getRiskLevel, getExaggeratedHeight } from '../../utils/colorMapping';
 
 interface RiskTerrainMapProps {
-  terrainData: TerrainPoint[];
+  enrichedGeoJson: FeatureCollection | null; // New - enriched GeoJSON data
   isGenerating: boolean;
 }
 
-// King County view configuration
-const KING_COUNTY_VIEW = {
-  longitude: -122.2015,    // Center of King County
-  latitude: 47.4668,
-  zoom: 10.5,               // Shows full county
-  pitch: 60,               // Dramatic 3D angle
-  bearing: -20,            // Slight rotation
-  minZoom: 6,              // Allow zooming out much farther
+// Washington State view configuration - optimized for county boundary visualization
+const WASHINGTON_STATE_VIEW = {
+  longitude: -120.0,       // Center of Washington State (adjusted for better county view)
+  latitude: 47.5,          // Slightly adjusted for better coverage
+  zoom: 5.5,               // Shows full state with good county detail
+  pitch: 45,               // Good angle for viewing 3D extrusions
+  bearing: 0,              // North-up orientation
+  minZoom: 4,              // Allow zooming out to see full state
   maxZoom: 16,             // Prevent zooming in too close
   maxPitch: 85,            // Allow steep angles
   minPitch: 0              // Allow flat 2D view
@@ -28,30 +29,31 @@ const KING_COUNTY_VIEW = {
 
 
 export function RiskTerrainMap({ 
-  terrainData, 
+  enrichedGeoJson, // New - enriched GeoJSON data
   isGenerating
 }: RiskTerrainMapProps) {
-  const [viewState, setViewState] = useState<ViewState>(KING_COUNTY_VIEW);
-  const [hoveredObject, setHoveredObject] = useState<TerrainPoint | null>(null);
+  const [viewState, setViewState] = useState<ViewState>(WASHINGTON_STATE_VIEW);
+  const [hoveredObject, setHoveredObject] = useState<Feature | null>(null);
+  const [webglError, setWebglError] = useState<string | null>(null);
 
-  // Debug: Log terrain data to verify it has proper risk scores
+  // Debug: Log enriched GeoJSON data to verify it has proper risk scores
   useMemo(() => {
-    if (terrainData.length > 0) {
-      console.log('Terrain data debug:', {
-        pointCount: terrainData.length,
-        samplePoints: terrainData.slice(0, 5).map(p => ({
-          lon: p.lon,
-          lat: p.lat,
-          riskScore: p.riskScore,
-          elevation: getExaggeratedHeight(p.riskScore)
+    if (enrichedGeoJson && enrichedGeoJson.features.length > 0) {
+      console.log('Enriched GeoJSON debug:', {
+        featureCount: enrichedGeoJson.features.length,
+        sampleFeatures: enrichedGeoJson.features.slice(0, 5).map(f => ({
+          county: f.properties?.CNTY || f.properties?.COUNTY || f.properties?.NAME || f.properties?.COUNTY_NAME || f.properties?.CNTY_NM || f.properties?.COUNTY_NM || 'Unknown',
+          riskScore: f.properties?.riskScore,
+          predictedValue: f.properties?.predictedValue,
+          elevation: f.properties?.riskScore ? getExaggeratedHeight(f.properties.riskScore) : 0
         })),
         riskScoreRange: {
-          min: Math.min(...terrainData.map(p => p.riskScore)),
-          max: Math.max(...terrainData.map(p => p.riskScore))
+          min: Math.min(...enrichedGeoJson.features.map(f => f.properties?.riskScore || 0)),
+          max: Math.max(...enrichedGeoJson.features.map(f => f.properties?.riskScore || 0))
         }
       });
     }
-  }, [terrainData]);
+  }, [enrichedGeoJson]);
 
   const handleViewStateChange = useCallback(({ viewState }: any) => {
     setViewState(viewState);
@@ -76,52 +78,79 @@ export function RiskTerrainMap({
 
 
   const layers = useMemo(() => {
-    console.log('=== LAYER CREATION ===');
-    console.log('Terrain data length:', terrainData?.length || 0);
-    console.log('Terrain data exists:', !!terrainData);
+    console.log('=== GEOJSON LAYER CREATION ===');
+    console.log('Enriched GeoJSON exists:', !!enrichedGeoJson);
+    console.log('Feature count:', enrichedGeoJson?.features?.length || 0);
     
-    if (!terrainData || terrainData.length === 0) {
-      console.log('No terrain data - returning empty layers');
+    if (!enrichedGeoJson || enrichedGeoJson.features.length === 0) {
+      console.log('No enriched GeoJSON data - returning empty layers');
       return [] as any[];
     }
 
-    console.log('Building column layer for', terrainData.length, 'data points');
-    console.log('Sample terrain data:', terrainData.slice(0, 3));
-
-
-    console.log('Creating ColumnLayer with terrain data');
-    console.log('Sample terrain data for columns:', terrainData.slice(0, 3).map(d => ({
-      position: [d.lon, d.lat],
-      elevation: getExaggeratedHeight(d.riskScore),
-      color: getRiskColor(d.riskScore),
-      riskScore: d.riskScore
+    console.log('Building GeoJsonLayer for', enrichedGeoJson.features.length, 'county features');
+    console.log('Sample features:', enrichedGeoJson.features.slice(0, 3).map(f => ({
+      county: f.properties?.CNTY || f.properties?.COUNTY || f.properties?.NAME || f.properties?.COUNTY_NAME || f.properties?.CNTY_NM || f.properties?.COUNTY_NM || 'Unknown',
+      riskScore: f.properties?.riskScore,
+      predictedValue: f.properties?.predictedValue
     })));
 
-    const columnLayer = new ColumnLayer({
-      id: 'risk-columns',
-      data: terrainData,
-      getPosition: (d: TerrainPoint) => [d.lon, d.lat],
-      getFillColor: (d: TerrainPoint) => {
-        const [r, g, b] = getRiskColor(d.riskScore);
-        return [r, g, b, 255];
+    const geoJsonLayer = new GeoJsonLayer({
+      id: 'wa-county-extrusions',
+      data: enrichedGeoJson as any, // Type assertion to work around Deck.gl type issues
+      
+      // *** 3D Extrusion Configuration ***
+      extruded: true,
+      wireframe: false, // Set to true for skeletal view if desired
+      
+      // Height Mapping: Use the riskScore property with dramatic scaling
+      getElevation: (f: any) => {
+        const riskScore = f.properties?.riskScore || 0;
+        return getExaggeratedHeight(riskScore);
       },
-      getLineColor: [0, 0, 0, 255],
-      getElevation: (d: TerrainPoint) => getExaggeratedHeight(d.riskScore),
-      radius: 3000, // radius in meters - increased for fuller coverage
+      
+      // Color Mapping: Use the riskScore property for color gradient
+      getFillColor: (f: any) => {
+        const riskScore = f.properties?.riskScore || 0;
+        return getRiskColor(riskScore);
+      },
+      
+      // Border styling
+      getLineColor: [0, 0, 0, 100], // Dark, semi-transparent border
+      getLineWidth: 200, // Border width
+      
+      // Interactivity
       pickable: true,
       opacity: 0.8,
       onHover: ({ object }) => {
-        if (object) setHoveredObject(object);
+        if (object) setHoveredObject(object as Feature);
       },
       onClick: ({ object }) => {
-        if (object) setHoveredObject(object);
+        if (object) setHoveredObject(object as Feature);
       }
     });
 
-    console.log('Column layer created:', columnLayer);
+    console.log('GeoJsonLayer created:', geoJsonLayer);
     console.log('Returning layers array with', 1, 'layer');
-    return [columnLayer];
-  }, [terrainData]);
+    return [geoJsonLayer];
+  }, [enrichedGeoJson]);
+
+  // Show fallback UI if WebGL fails
+  if (webglError) {
+    return (
+      <div className="w-full h-full relative bg-gray-100 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="text-red-600 text-lg font-semibold mb-4">WebGL Rendering Error</div>
+          <div className="text-gray-700 mb-4">{webglError}</div>
+          <button 
+            onClick={() => setWebglError(null)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full relative">
@@ -133,11 +162,13 @@ export function RiskTerrainMap({
         onViewStateChange={handleViewStateChange}
         onError={(error) => {
           console.error('DeckGL Error:', error);
+          setWebglError(error.message || 'WebGL rendering error');
+          // Don't crash the app on WebGL errors, just log them
         }}
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle="mapbox://styles/mapbox/outdoors-v12"
           style={{ width: '100%', height: '100%' }}
           antialias={true}
           preserveDrawingBuffer={true}
@@ -162,14 +193,29 @@ export function RiskTerrainMap({
       {hoveredObject && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl z-30 pointer-events-none">
           <div className="text-white text-sm">
-            <div className="font-semibold mb-2">Risk Analysis</div>
+            <div className="font-semibold mb-2">County Risk Analysis</div>
             <div className="space-y-1">
-              <div>Overall Risk: <span className="text-cyan-400 font-bold">{Math.round(hoveredObject.riskScore * 100)}%</span></div>
-              <div>Risk Level: <span className="text-cyan-400">{getRiskLevel(hoveredObject.riskScore)}</span></div>
-              <div className="text-xs text-gray-400 mt-2">Breakdown:</div>
-              <div className="text-xs">Air Quality: {Math.round(hoveredObject.breakdown.airQuality * 100)}%</div>
-              <div className="text-xs">Noise: {Math.round(hoveredObject.breakdown.noisePollution * 100)}%</div>
-              <div className="text-xs">Flood/Climate: {Math.round(hoveredObject.breakdown.floodClimate * 100)}%</div>
+              <div>County: <span className="text-cyan-400 font-bold">
+                {hoveredObject.properties?.CNTY || 
+                 hoveredObject.properties?.COUNTY || 
+                 hoveredObject.properties?.NAME || 
+                 hoveredObject.properties?.COUNTY_NAME ||
+                 hoveredObject.properties?.CNTY_NM ||
+                 hoveredObject.properties?.COUNTY_NM ||
+                 'Unknown'}
+              </span></div>
+              <div>Overall Risk: <span className="text-cyan-400 font-bold">{Math.round((hoveredObject.properties?.riskScore || 0) * 100)}%</span></div>
+              <div>Risk Level: <span className="text-cyan-400">{getRiskLevel(hoveredObject.properties?.riskScore || 0)}</span></div>
+              {hoveredObject.properties?.predictedValue !== undefined && (
+                <div>Predicted Value: <span className="text-cyan-400">{hoveredObject.properties.predictedValue.toFixed(2)}</span></div>
+              )}
+              {hoveredObject.properties?.apiData && (
+                <>
+                  <div className="text-xs text-gray-400 mt-2">Additional Data:</div>
+                  <div className="text-xs">Density: {hoveredObject.properties.apiData.density?.toFixed(2) || 'N/A'}</div>
+                  <div className="text-xs">Ground Truth: {hoveredObject.properties.apiData.ground_truth_value?.toFixed(2) || 'N/A'}</div>
+                </>
+              )}
             </div>
           </div>
         </div>

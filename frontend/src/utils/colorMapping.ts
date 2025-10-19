@@ -68,16 +68,17 @@ export function getRiskLevel(riskScore: number): string {
  * Creates "mountain peaks" for high-risk areas and keeps valleys low
  */
 export function getExaggeratedHeight(riskScore: number): number {
-  // Low values (0-0.4): Keep relatively flat (multiply by 0.5-2)
-  // Mid values (0.4-0.7): Moderate increase (multiply by 2-5)
-  // High values (0.7-1.0): Dramatic peaks (multiply by 5-10)
+  // Much more dramatic height exaggeration for better visual impact
+  // Low values (0-0.4): Keep relatively flat but still visible
+  // Mid values (0.4-0.7): Moderate increase with good visibility
+  // High values (0.7-1.0): Very dramatic peaks for maximum visual impact
   
   if (riskScore < 0.4) {
-    return riskScore * 3000; // Max 1200m for low values
+    return riskScore * 15000; // Max 6000m for low values (much higher than before)
   } else if (riskScore < 0.7) {
-    return Math.pow(riskScore, 1.8) * 10000; // Accelerating growth
+    return Math.pow(riskScore, 1.5) * 50000; // Accelerating growth to 35km
   } else {
-    return Math.pow(riskScore, 2.5) * 18000; // Dramatic peaks up to 18km
+    return Math.pow(riskScore, 2.0) * 100000; // Very dramatic peaks up to 100km
   }
 }
 

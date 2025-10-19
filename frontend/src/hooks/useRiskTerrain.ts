@@ -1,49 +1,80 @@
 import { useState, useCallback } from 'react';
 import type { TerrainPoint } from '../types/terrain.types';
 import type { SimulationResponse } from '../utils/apiClient';
+import { fetchGeoJsonData, enrichGeoJsonWithRisk } from '../utils/geojsonFetcher';
 import { convertCountyDataToColumns } from '../utils/dataInterpolation';
 
 export function useRiskTerrain() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainPoint[]>([]);
+  const [enrichedGeoJson, setEnrichedGeoJson] = useState<any>(null);
   
-  // Function to generate terrain from API county data
+  // Function to generate enriched GeoJSON from API county data
   const loadTerrainFromAPI = useCallback(async (apiResponse: SimulationResponse) => {
     setIsGenerating(true);
     
     try {
-      console.log('=== LOADING TERRAIN FROM API ===');
+      console.log('=== LOADING ENRICHED GEOJSON FROM API ===');
       console.log('Full API Response:', JSON.stringify(apiResponse, null, 2));
       console.log('Data Points Count:', apiResponse.data.dataPoints.length);
       console.log('Sample Data Points:', apiResponse.data.dataPoints.slice(0, 3));
       console.log('Baseline Data:', apiResponse.data.baseline);
       console.log('Metric:', apiResponse.data.metric);
       
-      // Convert 39 county points to column data
-      // Option 1: Use 39 points directly (sparse but accurate)
-      // Option 2: Interpolate to ~100-200 points for visual density
+      // Step 1: Fetch Washington State county boundaries
+      console.log('=== FETCHING COUNTY BOUNDARIES ===');
+      let countyGeoJson;
+      try {
+        countyGeoJson = await fetchGeoJsonData();
+        if (!countyGeoJson) {
+          throw new Error('Failed to fetch county boundaries - no data returned');
+        }
+      } catch (error) {
+        console.error('Failed to fetch county boundaries:', error);
+        // For now, we'll fall back to the legacy terrain system
+        // In the future, we could implement a fallback with simplified county shapes
+        throw new Error(`Failed to fetch county boundaries: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      
+      // Step 2: Enrich GeoJSON with risk data
+      console.log('=== ENRICHING GEOJSON WITH RISK DATA ===');
+      const enriched = enrichGeoJsonWithRisk(countyGeoJson, apiResponse.data.dataPoints);
+      
+      if (enriched) {
+        console.log('=== GEOJSON ENRICHMENT COMPLETE ===');
+        console.log('Total Features:', enriched.features.length);
+        console.log('Features with Risk Data:', enriched.features.filter(f => (f.properties?.riskScore ?? 0) > 0).length);
+        console.log('Risk Score Range:', {
+          min: Math.min(...enriched.features.map(f => f.properties?.riskScore ?? 0)),
+          max: Math.max(...enriched.features.map(f => f.properties?.riskScore ?? 0))
+        });
+        console.log('Sample Enriched Features:', enriched.features.slice(0, 3).map(f => ({
+          county: f.properties?.CNTY,
+          riskScore: f.properties?.riskScore,
+          predictedValue: f.properties?.predictedValue
+        })));
+        
+        // Set the enriched GeoJSON data
+        setEnrichedGeoJson(enriched);
+      } else {
+        console.warn('GeoJSON enrichment returned null - falling back to legacy terrain system');
+      }
+      
+      // For backward compatibility, also convert to terrain points (will be removed in next phase)
       const columnData = convertCountyDataToColumns(apiResponse.data.dataPoints, false, 39);
-      
-      console.log('=== TERRAIN CONVERSION ===');
-      console.log('Original County Count:', apiResponse.data.dataPoints.length);
-      console.log('Final Terrain Points:', columnData.length);
-      console.log('Sample Terrain Points:', columnData.slice(0, 5));
-      console.log('Risk Score Range:', {
-        min: Math.min(...columnData.map(p => p.riskScore)),
-        max: Math.max(...columnData.map(p => p.riskScore))
-      });
-      
       setTerrainData(columnData);
-      console.log('Terrain data set successfully!');
+      
+      console.log('Enriched GeoJSON data set successfully!');
     } catch (error) {
-      console.error('Error loading terrain from API:', error);
+      console.error('Error loading enriched GeoJSON from API:', error);
     } finally {
       setIsGenerating(false);
     }
   }, []);
   
   return {
-    terrainData,
+    terrainData, // Legacy - will be removed
+    enrichedGeoJson, // New - enriched GeoJSON data
     isGenerating,
     loadTerrainFromAPI  // Expose this to PromptInterface
   };
