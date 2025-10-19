@@ -197,9 +197,9 @@ class GeminiDataEngineer:
         
         # Load the mandatory latitude/longitude coordinates
         df_input = pd.read_csv(dummy_file)
-        # RENAMED COLUMNS for cleaner JSON keys, include location type for factual grounding
+        # RENAMED COLUMNS for cleaner JSON keys, include county data for factual grounding
         unique_locations = df_input.rename(
-            columns={'Latitude': 'lat', 'Longitude': 'lon', 'Location_Type': 'location_type'}
+            columns={'County Name': 'name', 'Latitude': 'lat', 'Longitude': 'lon', 'County Seat': 'seat', 'Pop. Density': 'density'}
         ).drop_duplicates()
         
         # Convert the location list to JSON
@@ -213,61 +213,46 @@ class GeminiDataEngineer:
             "mandatory locations provided. You must invent a realistic 'value' (Pollutant Amount) "
             "based on the Director's request and the geographic location. "
             
-            "IMPORTANT: Use the location_type field (urban/suburban/rural) to factually ground your values: "
-            "- URBAN areas should have higher pollution values (traffic, industry, density) "
-            "- SUBURBAN areas should have medium pollution values (some traffic, residential) "
-            "- RURAL areas should have lower pollution values (natural, less traffic) "
+            "IMPORTANT: Use the population density and county characteristics to factually ground your values: "
+            "- HIGH density areas should have higher pollution values (traffic, industry, density) "
+            "- MEDIUM density areas should have medium pollution values (some traffic, residential) "
+            "- LOW density areas should have lower pollution values (natural, less traffic) "
             
-            "Your output MUST strictly adhere to the provided JSON schema."
+            "Your output MUST be a valid JSON object with this structure:"
+            "\n{"
+            "\n  \"metric\": \"string\","
+            "\n  \"unit\": \"string\","
+            "\n  \"dataPoints\": ["
+            "\n    {"
+            "\n      \"name\": \"string\","
+            "\n      \"lat\": number,"
+            "\n      \"lon\": number,"
+            "\n      \"seat\": \"string\","
+            "\n      \"density\": number,"
+            "\n      \"value\": number"
+            "\n    }"
+            "\n  ]"
+            "\n}"
         )
         
-        # --- Minimal JSON Schema ---
-        # return blueprint
-        minimal_json_schema = {
-            "type": "object",
-            "properties": {
-                "metric": {"type": "string"},    
-                "unit": {"type": "string"},      
-                "dataPoints": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "": {},
-                            
-                            "lat": {"type": "number"},
-                            "lon": {"type": "number"},
-                            "value": {"type": "number"}
-                        },
-                        "required": ["lat", "lon", "value"]
-                    }
-                }
-            },
-            "required": ["metric", "unit", "dataPoints"]
-        }
         
         user_query = f"""
                 Director's Prompt: {director_prompt}
 
                 Mandatory Locations (you must generate data for ALL of these):
-                Each location includes lat, lon, and location_type (urban/suburban/rural).
-                Use the location_type to factually ground your pollution values.
+                Each location includes name, lat, lon, seat, and density.
+                Use the population density to factually ground your pollution values.
                 {location_list}
 
                 Please generate simulated data for all the mandatory locations above. 
-                Return ONLY a valid JSON object matching the schema with metric, unit, and dataPoints.
+                Return ONLY a valid JSON object with metric, unit, and dataPoints as specified in the system instruction.
                 """
-        print("--------------------------------")
-        print(director_prompt)
-        print(location_list)
-        print("--------------------------------")
         response = self.client.models.generate_content(
             model=self.model,
             contents=user_query,
             config={
                 "system_instruction": system_instruction,
-                "response_mime_type": "application/json",
-                "response_schema": minimal_json_schema
+                "response_mime_type": "application/json"
             }
         )
         
