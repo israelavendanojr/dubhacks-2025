@@ -1,20 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
+import { ColumnLayer } from '@deck.gl/layers';
+import { AmbientLight, DirectionalLight, LightingEffect } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import type { ViewState } from '../../types/terrain.types';
-import type { AggregatedDataPoint } from '../../types/pollution.types';
-import { createPollutionLayer } from './PollutionLayer';
-import { getPollutionLevel, getPollutionDescription } from '../../utils/pollutionColorScale';
-import type { ChemicalConfig } from '../../config/chemicals';
+import type { TerrainPoint, ViewState } from '../../types/terrain.types';
+import { getRiskColor, getRiskLevel } from '../../utils/colorMapping';
 
 interface RiskTerrainMapProps {
-  // Remove: terrainData, isGenerating
-  pollutionData?: AggregatedDataPoint[];
-  showPollution?: boolean;
-  currentMonth?: string;
-  chemicalConfig?: ChemicalConfig;
-  onViewStateChange?: (viewState: ViewState) => void;
+  terrainData: TerrainPoint[];
+  isGenerating: boolean;
 }
 
 // King County view configuration
@@ -23,51 +18,90 @@ const KING_COUNTY_VIEW = {
   latitude: 47.4668,
   zoom: 9.5,               // Shows full county
   pitch: 60,               // Dramatic 3D angle
-  bearing: -20             // Slight rotation
+  bearing: -20,            // Slight rotation
+  minZoom: 8,              // Prevent zooming out too far
+  maxZoom: 16,             // Prevent zooming in too close
+  maxPitch: 85,            // Allow steep angles
+  minPitch: 0              // Allow flat 2D view
 };
 
 
 
 export function RiskTerrainMap({ 
-  pollutionData = [],
-  showPollution = false,
-  currentMonth,
-  chemicalConfig,
-  onViewStateChange
+  terrainData, 
+  isGenerating
 }: RiskTerrainMapProps) {
   const [viewState, setViewState] = useState<ViewState>(KING_COUNTY_VIEW);
-  const [hoveredPollution, setHoveredPollution] = useState<AggregatedDataPoint | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<TerrainPoint | null>(null);
 
-  const handleViewStateChange = useCallback((params: any) => {
-    const { viewState } = params;
+  // Debug: Log terrain data to verify it has proper risk scores
+  useMemo(() => {
+    if (terrainData.length > 0) {
+      console.log('Terrain data debug:', {
+        pointCount: terrainData.length,
+        samplePoints: terrainData.slice(0, 5).map(p => ({
+          lon: p.lon,
+          lat: p.lat,
+          riskScore: p.riskScore,
+          elevation: p.riskScore * 8000
+        })),
+        riskScoreRange: {
+          min: Math.min(...terrainData.map(p => p.riskScore)),
+          max: Math.max(...terrainData.map(p => p.riskScore))
+        }
+      });
+    }
+  }, [terrainData]);
+
+  const handleViewStateChange = useCallback(({ viewState }: any) => {
     setViewState(viewState);
-    onViewStateChange?.(viewState);
-  }, [onViewStateChange]);
+  }, []);
+
+  // Create solid lighting effects for 3D terrain visualization
+  const lightingEffect = useMemo(() => {
+    const ambientLight = new AmbientLight({
+      color: [255, 255, 255],
+      intensity: 0.6 // Higher ambient for more solid appearance
+    });
+
+    const directionalLight = new DirectionalLight({
+      color: [255, 255, 255],
+      intensity: 1.2, // Good intensity for solid lighting
+      direction: [-0.5, -0.5, -1] // Angled light for better terrain definition
+    });
+
+    return new LightingEffect({ ambientLight, directionalLight });
+  }, []);
 
 
-  // REMOVE: all terrain layer code, keep only pollution layer
-  
+
   const layers = [
-    // Pollution layer
-    ...(showPollution && pollutionData.length > 0 ? [
-      createPollutionLayer({
-        data: pollutionData,
-        visible: true,
-        opacity: 0.8,
-        radiusScale: 50,
-        chemicalConfig,
-        onHover: (data) => setHoveredPollution(data),
-        onClick: (data) => setHoveredPollution(data)
-      })
-    ] : [])
+    // Risk terrain layer - Thicker columns for better visibility
+    new ColumnLayer({
+      id: 'risk-terrain',
+      data: terrainData,
+      diskResolution: 12, // Good resolution for smooth appearance
+      radius: 60, // Thicker radius for better visibility
+      extruded: true,
+      pickable: true,
+      elevationScale: 1,
+      getPosition: (d: TerrainPoint) => [d.lon, d.lat],
+      getElevation: (d: TerrainPoint) => d.riskScore * 8000, // Much higher elevation for dramatic effect
+      getFillColor: (d: TerrainPoint) => getRiskColor(d.riskScore),
+      material: {
+        ambient: 0.6,
+        diffuse: 1.0,
+        shininess: 32,
+        specularColor: [50, 50, 50]
+      },
+      parameters: {
+        depthTest: true,
+        blend: false
+      },
+      onHover: ({ object }) => setHoveredObject(object as TerrainPoint),
+      onClick: ({ object }) => setHoveredObject(object as TerrainPoint)
+    })
   ];
-
-  console.log('RiskTerrainMap render:', {
-    showPollution,
-    dataPointCount: pollutionData.length,
-    currentMonth,
-    chemical: chemicalConfig?.id
-  });
 
   return (
     <div className="w-full h-full relative">
@@ -77,15 +111,6 @@ export function RiskTerrainMap({
         layers={layers}
         effects={[lightingEffect]}
         onViewStateChange={handleViewStateChange}
-        parameters={{
-          clearColor: [0, 0, 0, 1]
-        }}
-        glOptions={{
-          preserveDrawingBuffer: true,
-          antialias: true,
-          depth: true,
-          stencil: false
-        }}
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
@@ -94,40 +119,31 @@ export function RiskTerrainMap({
           antialias={true}
           preserveDrawingBuffer={true}
           reuseMaps={true}
-          glOptions={{
-            preserveDrawingBuffer: true,
-            antialias: true,
-            depth: true
-          }}
         />
       </DeckGL>
       
+      {/* Loading Overlay */}
+      {isGenerating && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+          <div className="bg-gray-900 rounded-lg p-6 flex items-center space-x-3">
+            <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-white font-semibold">Generating 3D Terrain...</span>
+          </div>
+        </div>
+      )}
 
-
-      {/* Pollution Data Tooltip */}
-      {hoveredPollution && (
+      {/* Risk Terrain Tooltip */}
+      {hoveredObject && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl z-30 pointer-events-none">
           <div className="text-white text-sm">
-            <div className="font-semibold mb-2">
-              {(hoveredPollution as any).chemicalName || chemicalConfig?.name} Data
-            </div>
+            <div className="font-semibold mb-2">Risk Analysis</div>
             <div className="space-y-1">
-              <div>
-                Location: <span className="text-cyan-400">
-                  ({hoveredPollution.coordinates[1].toFixed(4)}, {hoveredPollution.coordinates[0].toFixed(4)})
-                </span>
-              </div>
-              {currentMonth && (
-                <div>Month: <span className="text-cyan-400">{currentMonth}</span></div>
-              )}
-              <div>
-                Amount: <span className="text-cyan-400 font-bold">
-                  {hoveredPollution.averageAmount.toFixed(3)} {(hoveredPollution as any).chemicalId ? 'units' : chemicalConfig?.unit}
-                </span>
-              </div>
-              <div>Readings: <span className="text-cyan-400">{hoveredPollution.readingCount}</span></div>
-              <div>Level: <span className="text-cyan-400">{getPollutionLevel(hoveredPollution.normalizedAmount)}</span></div>
-              <div className="text-xs text-gray-400 mt-2">{getPollutionDescription(hoveredPollution.normalizedAmount)}</div>
+              <div>Overall Risk: <span className="text-cyan-400 font-bold">{Math.round(hoveredObject.riskScore * 100)}%</span></div>
+              <div>Risk Level: <span className="text-cyan-400">{getRiskLevel(hoveredObject.riskScore)}</span></div>
+              <div className="text-xs text-gray-400 mt-2">Breakdown:</div>
+              <div className="text-xs">Air Quality: {Math.round(hoveredObject.breakdown.airQuality * 100)}%</div>
+              <div className="text-xs">Noise: {Math.round(hoveredObject.breakdown.noisePollution * 100)}%</div>
+              <div className="text-xs">Flood/Climate: {Math.round(hoveredObject.breakdown.floodClimate * 100)}%</div>
             </div>
           </div>
         </div>
