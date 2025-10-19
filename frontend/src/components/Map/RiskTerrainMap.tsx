@@ -173,6 +173,9 @@ export function RiskTerrainMap({
         layers={layers}
         effects={[lightingEffect]}
         onViewStateChange={handleViewStateChange}
+        onError={(error) => {
+          console.warn('DeckGL Error (non-critical):', error);
+        }}
       >
         <Map
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
@@ -181,6 +184,9 @@ export function RiskTerrainMap({
           antialias={true}
           preserveDrawingBuffer={true}
           reuseMaps={true}
+          onError={(error) => {
+            console.warn('Mapbox Error (non-critical):', error);
+          }}
         />
       </DeckGL>
       

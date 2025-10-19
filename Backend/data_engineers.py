@@ -21,7 +21,7 @@ METRIC_UNIT_MAPPING: Dict[str, str] = {
 METRIC_TO_CSV_COLUMN: Dict[str, str] = {
     "NO2": "NO2 Avg. (ppb)",
     "PM2.5": "PM2.5 Avg. (µg/m³)",
-    "GWP": "GWP (CO2e per capita, MT/yr)",
+    "GWP": "GWP (CO2e per capita",
     "AQI": "Annual Avg. AQI (0-500)"
 }
 
