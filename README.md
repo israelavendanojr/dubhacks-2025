@@ -7,20 +7,20 @@ AUTHORS: JEFFREY,ISRAEL,PRANAV,ZURIAHN
 
 A cutting-edge 3D geospatial visualization platform that transforms environmental risk data into dramatic mountain landscapes. Built for the University of Washington's DubHacks 2025 hackathon, this project combines AI-powered data generation with immersive 3D terrain visualization to help users understand environmental risks across King County, Seattle.
 
-## 🌟 Project Overview
+## Project Overview
 
 Risk3D features a two-stage AI pipeline that generates realistic environmental data and renders it as stunning 3D terrain using WebGL. Users can explore risk factors like air quality, noise pollution, and flood risk through an interactive 3D landscape where higher peaks represent greater risk areas.
 
 ### Key Features
 
-- **🤖 AI-Powered Data Generation**: Two-stage LLM pipeline using Google Gemini
-- **🏔️ 3D Terrain Visualization**: Risk data rendered as dramatic mountain peaks
-- **🎮 Interactive Controls**: Real-time adjustment of risk factor weights
-- **📊 Smart Insights**: AI-generated explanations for risk patterns
-- **🎨 Immersive UI**: Dark theme with professional design
-- **📱 Responsive Design**: Works across desktop and mobile devices
+- **AI-Powered Data Generation**: Two-stage LLM pipeline using Google Gemini
+- **3D Terrain Visualization**: Risk data rendered as dramatic mountain peaks
+- **Interactive Controls**: Real-time adjustment of risk factor weights
+- **Smart Insights**: AI-generated explanations for risk patterns
+- **Immersive UI**: Dark theme with professional design
+- **Responsive Design**: Works across desktop and mobile devices
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -33,7 +33,7 @@ Risk3D features a two-stage AI pipeline that generates realistic environmental d
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ npm run dev
 
 The frontend will be available at: http://localhost:5173
 
-## 🎮 How to Use
+## How to Use
 
 ### 1. Generate Risk Data
 - Enter a scenario prompt in the bottom prompt bar (e.g., "Simulate air quality during a heat wave in Seattle")
@@ -131,7 +131,7 @@ The frontend will be available at: http://localhost:5173
 - **Engineer**: Generates geo-spatial data with normalization
 - **Two-stage processing** for accurate, realistic data
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 dubhacks-2025/
@@ -207,7 +207,7 @@ GOOGLE_API_KEY=your_google_gemini_api_key_here
 - **Smooth Animations**: Framer Motion transitions
 - **Interactive Tooltips**: Hover effects with detailed data
 
-## 🚀 Future Enhancements
+## Future Enhancements
 
 - **Real-time Data**: Integration with live environmental APIs
 - **Time-lapse**: Historical risk data visualization
@@ -216,7 +216,7 @@ GOOGLE_API_KEY=your_google_gemini_api_key_here
 - **VR Support**: Virtual reality exploration mode
 - **Machine Learning**: Predictive risk modeling
 
-## 🤝 Contributing
+## Contributing
 
 This project was built for DubHacks 2025. To contribute:
 
@@ -225,16 +225,16 @@ This project was built for DubHacks 2025. To contribute:
 3. Make your changes
 4. Submit a pull request
 
-## 📄 License
+## License
 
 Built for **DubHacks 2025** - University of Washington Hackathon
 
-## 🏆 Team
+## Team
 
 Created by the Risk3D team for DubHacks 2025, showcasing the intersection of AI, 3D visualization, and environmental data science.
 
 ---
 
-**Risk3D** - Where environmental data becomes dramatic 3D landscapes! 🏔️✨
+**Risk3D** - Where environmental data becomes dramatic 3D landscapes! 
 
 *Transform the way we understand and visualize environmental risks through immersive 3D terrain visualization.*
