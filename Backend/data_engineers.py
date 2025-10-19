@@ -233,6 +233,8 @@ class GeminiDataEngineer:
                     "items": {
                         "type": "object",
                         "properties": {
+                            "": {},
+                            
                             "lat": {"type": "number"},
                             "lon": {"type": "number"},
                             "value": {"type": "number"}
