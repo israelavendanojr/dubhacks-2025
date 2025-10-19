@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { generateSimulation, type SimulationResponse } from '../utils/apiClient';
 
 interface PromptInterfaceProps {
-  // Future props can be added here for Phase 2
+  onTerrainGenerated: (response: SimulationResponse) => Promise<void>;
 }
 
-export function PromptInterface({}: PromptInterfaceProps) {
+export function PromptInterface({ onTerrainGenerated }: PromptInterfaceProps) {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
@@ -38,6 +38,9 @@ export function PromptInterface({}: PromptInterfaceProps) {
           type: 'success',
           text: `✓ Generated ${response.data.metric} data (${response.data.dataPoints.length} counties)`
         });
+        
+        // Generate 3D terrain from API data
+        await onTerrainGenerated(response);
         
         // Auto-clear success message after 5 seconds
         setTimeout(() => {

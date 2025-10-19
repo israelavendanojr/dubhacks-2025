@@ -1,10 +1,9 @@
-import React from 'react';
 import { RiskTerrainMap } from './components/Map/RiskTerrainMap';
 import { PromptInterface } from './components/PromptInterface';
 import { useRiskTerrain } from './hooks/useRiskTerrain';
 
 function App() {
-  const { terrainData, isGenerating } = useRiskTerrain();
+  const { terrainData, isGenerating, loadTerrainFromAPI } = useRiskTerrain();
 
   return (
     <div className="w-full h-screen bg-black overflow-hidden flex flex-row">
@@ -18,7 +17,7 @@ function App() {
       
       {/* Right Panel - Control Panel (30%) */}
       <div className="w-[30%] h-full border-l border-gray-700">
-        <PromptInterface />
+        <PromptInterface onTerrainGenerated={loadTerrainFromAPI} />
       </div>
     </div>
   );

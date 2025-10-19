@@ -116,7 +116,7 @@ class DirectorofDataEngineering:
         )
         
         response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-lite",
             contents=[user_prompt],
             config=config
         )
@@ -141,7 +141,7 @@ class GeminiDataEngineer:
     
     def __init__(self):
         self.client = genai.Client()
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-2.5-flash-lite"
         
     def simulate(self, director_prompt, dummy_file):
         """

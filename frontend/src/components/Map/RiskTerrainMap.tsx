@@ -1,12 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { SimpleMeshLayer } from '@deck.gl/mesh-layers';
+import { ColumnLayer } from '@deck.gl/layers';
 import { AmbientLight, DirectionalLight, LightingEffect, COORDINATE_SYSTEM } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { TerrainPoint, ViewState } from '../../types/terrain.types';
 import { getRiskColor, getRiskLevel } from '../../utils/colorMapping';
-import { buildHeightfieldMesh, gaussianSmoothGrid } from '../../utils/heightfield';
 
 interface RiskTerrainMapProps {
   terrainData: TerrainPoint[];
@@ -77,92 +76,68 @@ export function RiskTerrainMap({
 
 
   const layers = useMemo(() => {
-    if (!terrainData || terrainData.length === 0) return [] as any[];
+    console.log('=== LAYER CREATION ===');
+    console.log('Terrain data length:', terrainData?.length || 0);
+    console.log('Terrain data exists:', !!terrainData);
+    
+    if (!terrainData || terrainData.length === 0) {
+      console.log('No terrain data - returning empty layers');
+      return [] as any[];
+    }
 
-    // Infer grid dimensions from generator: GRID_RESOLUTION x GRID_RESOLUTION
-    const gridSize = Math.round(Math.sqrt(terrainData.length));
-    const gridWidth = gridSize;
-    const gridHeight = gridSize;
+    console.log('Building column layer for', terrainData.length, 'data points');
+    console.log('Sample terrain data:', terrainData.slice(0, 3));
 
-    // Prepare risk value grid and smooth it
-    const rawValues = new Float32Array(terrainData.length);
-    for (let i = 0; i < terrainData.length; i++) rawValues[i] = terrainData[i].riskScore;
-    const smoothedValues = gaussianSmoothGrid(rawValues, gridWidth, gridHeight, 1.8, 2);
-
-    const mesh = buildHeightfieldMesh(
-      // inject smoothed heights while keeping other props for picking
-      terrainData.map((p, i) => ({ ...p, riskScore: smoothedValues[i] })),
-      gridWidth,
-      gridHeight,
-      8000
-    );
-
-    // Build a color texture canvas 0..1 uv mapping using risk colors
-    const canvas = document.createElement('canvas');
-    canvas.width = gridWidth;
-    canvas.height = gridHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const imageData = ctx.createImageData(gridWidth, gridHeight);
-      const brightness = 1.35; // increase to make colors brighter
-      const boost = (c: number) => Math.min(255, Math.round(c * brightness));
-      for (let y = 0; y < gridHeight; y++) {
-        for (let x = 0; x < gridWidth; x++) {
-          const idx = y * gridWidth + x;
-          const [r, g, b, a] = getRiskColor(smoothedValues[idx]);
-          const base = (y * gridWidth + x) * 4;
-          imageData.data[base + 0] = boost(r);
-          imageData.data[base + 1] = boost(g);
-          imageData.data[base + 2] = boost(b);
-          imageData.data[base + 3] = a;
+    // Helper to find nearest column for picking
+    function getNearestPointFromCoordinate(lon: number, lat: number): TerrainPoint | null {
+      let nearest: TerrainPoint | null = null;
+      let minDistance = Infinity;
+      
+      for (const point of terrainData) {
+        const distance = Math.sqrt(
+          Math.pow(point.lon - lon, 2) + Math.pow(point.lat - lat, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = point;
         }
       }
-      ctx.putImageData(imageData, 0, 0);
+      
+      return nearest;
     }
 
-    // Helper to find nearest grid cell for picking
-    function getNearestPointFromCoordinate(lon: number, lat: number): TerrainPoint | null {
-      const x = Math.round((lon - mesh.originLon) / mesh.cellSizeLngDeg);
-      const y = Math.round((lat - mesh.originLat) / mesh.cellSizeLatDeg);
-      if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) return null;
-      return terrainData[y * gridWidth + x];
-    }
+    console.log('Creating ColumnLayer with terrain data');
+    console.log('Sample terrain data for columns:', terrainData.slice(0, 3).map(d => ({
+      position: [d.lon, d.lat],
+      elevation: d.riskScore * 8000,
+      color: getRiskColor(d.riskScore),
+      riskScore: d.riskScore
+    })));
 
-    const surface = new SimpleMeshLayer({
-      id: 'risk-surface',
-      data: [0], // single mesh instance
-      mesh: {
-        attributes: {
-          positions: { value: mesh.positions, size: 3 },
-          texCoords: { value: mesh.texCoords, size: 2 }
-        },
-        indices: mesh.indices
-      } as any,
-      texture: canvas,
-      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
-      coordinateOrigin: [mesh.originLon, mesh.originLat, 0],
+    const columnLayer = new ColumnLayer({
+      id: 'risk-columns',
+      data: terrainData,
+      getPosition: (d: TerrainPoint) => [d.lon, d.lat],
+      getFillColor: (d: TerrainPoint) => {
+        const [r, g, b] = getRiskColor(d.riskScore);
+        return [r, g, b, 255];
+      },
+      getLineColor: [0, 0, 0, 255],
+      getElevation: (d: TerrainPoint) => d.riskScore * 8000,
+      radius: 2000, // radius in meters
       pickable: true,
-      opacity: 0.25,
-      parameters: {
-        depthTest: true,
-        blend: true
+      opacity: 0.8,
+      onHover: ({ object }) => {
+        if (object) setHoveredObject(object);
       },
-      onHover: ({ coordinate }) => {
-        if (!coordinate) return;
-        const [lon, lat] = coordinate as [number, number];
-        const nearest = getNearestPointFromCoordinate(lon, lat);
-        // Show smoothed risk while preserving original factor breakdown
-        if (nearest) setHoveredObject({ ...nearest, riskScore: smoothedValues[terrainData.indexOf(nearest)] });
-      },
-      onClick: ({ coordinate }) => {
-        if (!coordinate) return;
-        const [lon, lat] = coordinate as [number, number];
-        const nearest = getNearestPointFromCoordinate(lon, lat);
-        if (nearest) setHoveredObject({ ...nearest, riskScore: smoothedValues[terrainData.indexOf(nearest)] });
+      onClick: ({ object }) => {
+        if (object) setHoveredObject(object);
       }
     });
 
-    return [surface];
+    console.log('Column layer created:', columnLayer);
+    console.log('Returning layers array with', 1, 'layer');
+    return [columnLayer];
   }, [terrainData]);
 
   return (
@@ -174,7 +149,7 @@ export function RiskTerrainMap({
         effects={[lightingEffect]}
         onViewStateChange={handleViewStateChange}
         onError={(error) => {
-          console.warn('DeckGL Error (non-critical):', error);
+          console.error('DeckGL Error:', error);
         }}
       >
         <Map
