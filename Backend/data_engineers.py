@@ -1,18 +1,25 @@
 from google import genai
-import os
-from dotenv import load_dotenv
 from google.genai import types
 import pandas as pd
 import json
+import os
+from dotenv import load_dotenv
 
+# Ensure environment variables are loaded for the client initialization
 load_dotenv()
 
 class DirectorofDataEngineering:
+    """
+    Converts a natural language user prompt into a structured, technical 
+    specification for the data generation engineer.
+    """
     def __init__(self, unique_latitude_longitude_file):
+        # We use a client attribute here, but initialize it inside the method 
+        # to ensure it's available when the method is called.
         self.latitude_longitude_file = unique_latitude_longitude_file
+        self.client = genai.Client()
         
     def directions(self, user_prompt):
-        client = genai.Client()
         
         system_instruction_text = (
             "You are a Data Simulation Director specializing in environmental data engineering. "
@@ -24,9 +31,10 @@ class DirectorofDataEngineering:
             "\n\nYour output MUST be a complete, well-defined prompt containing all quantifiable parameters."
             
             "\n\nMANDATORY INFERENCES AND DATA POINTS:"
-            "\n1. Target Year and Target Month: If the client does not specify the time, you MUST assume a plausible future date (e.g., the next calendar month) and state the assumed Year and Month clearly. Do not ask for the date."
-            "\n2. Base Statistics: You MUST determine and define a 'Base Mean' and 'Standard Deviation' for the pollution amount (assuming NO2 in ppb) that aligns with the scenario's severity (e.g., low-severity scenario = low mean)."
-            "\n3. Spatial/Temporal Rules: You MUST define at least two concrete, quantifiable 'Scaling Rules' that describe how pollution intensity should vary spatially (e.g., '1.5x increase in the urban center') or temporally (e.g., 'amounts decrease 20% in the last week')."
+            "\n1. Target Metric and Unit: You MUST explicitly define the environmental metric (e.g., 'NO2', 'PM2.5', 'Noise Level') and its appropriate unit (e.g., 'ppb', 'μg/m³', 'dB')."
+            "\n2. Target Timeframe: If the client does not specify the time, you MUST assume a plausible future date (e.g., the next calendar year) and state the assumed Year clearly. Do not ask for the date."
+            "\n3. Base Statistics: You MUST determine and define a 'Base Mean' and 'Standard Deviation' for the pollution amount that aligns with the scenario's severity (e.g., low-severity scenario = low mean)."
+            "\n4. Spatial Scaling Rules: You MUST define at least two concrete, quantifiable 'Scaling Rules' that describe how pollution intensity should vary spatially (e.g., '1.5x increase in the urban center near I-5' or '40% decrease near protected park lands')."
             
             "\n\nYour final response MUST contain only the structured specification, starting with 'Scenario Specification:'. Do not include any commentary or surrounding text."
         )
@@ -35,7 +43,7 @@ class DirectorofDataEngineering:
             system_instruction=system_instruction_text
         )
         
-        response = client.models.generate_content(
+        response = self.client.models.generate_content(
             model="gemini-2.5-pro",
             contents=[user_prompt],
             config=config
@@ -52,29 +60,34 @@ class GeminiDataEngineer:
         self.model = "gemini-2.5-pro"
         
     def simulate(self, director_prompt, dummy_file):
-        # Load the mandatory latitude/longitude coordinates
-        df_input = pd.read_csv(dummy_file)
-        location_cols = ['Latitude', 'Longitude']
-        unique_locations = df_input[location_cols].drop_duplicates()
-        location_list = unique_locations.to_json(orient='records')
         
-        # Construct the full system instruction and user query
+        # Load the mandatory latitude/longitude coordinates and LocationType
+        df_input = pd.read_csv(dummy_file)
+        # RENAMED COLUMNS for cleaner JSON keys
+        unique_locations = df_input.rename(
+            columns={'Latitude': 'lat', 'Longitude': 'lon', 'LocationType': 'type'}
+        ).drop_duplicates()
+        
+        # Convert the enriched location list to JSON
+        location_list = unique_locations.to_json(orient='records', indent=2)
+        
+        # --- System Instruction (MANDATORY REASONING) ---
         system_instruction = (
             "You are a highly skilled, freelance Data Engineer using Gemini Pro. "
-            "Your task is to take the director's prompt, the historical context provided by the dummy data, "
-            "and a list of mandatory output locations (Latitude/Longitude pairs). "
+            "Your task is to take the director's prompt and a list of mandatory output locations. "
             "You MUST generate a list of JSON objects where each object corresponds EXACTLY to one of the "
-            "mandatory Latitude/Longitude pairs provided. You must invent realistic pollution values "
-            "based on the director's request. Your output MUST strictly adhere "
-            "to the provided JSON schema."
+            "mandatory locations provided. You must invent a realistic 'value' (Pollutant Amount) "
+            "based on the **Director's request** and the **specific 'type' of location** (e.g., Downtown, Industrial Zone). "
+            "Crucially, you MUST include a concise **'reasoning'** string explaining why the generated 'value' is appropriate for that specific location and scenario. "
+            "Your output MUST strictly adhere to the provided JSON schema."
         )
         
-        # Minimal JSON Schema as specified
+        # --- Minimal JSON Schema (INCLUDE REASONING) ---
         minimal_json_schema = {
             "type": "object",
             "properties": {
-                "metric": {"type": "string"},    # e.g., "NO2"
-                "unit": {"type": "string"},      # e.g., "ppb"
+                "metric": {"type": "string"},    
+                "unit": {"type": "string"},      
                 "dataPoints": {
                     "type": "array",
                     "items": {
@@ -82,9 +95,10 @@ class GeminiDataEngineer:
                         "properties": {
                             "lat": {"type": "number"},
                             "lon": {"type": "number"},
-                            "value": {"type": "number"} # The raw pollution amount
+                            "value": {"type": "number"},
+                            "reasoning": {"type": "string"} # LLM-generated justification
                         },
-                        "required": ["lat", "lon", "value"]
+                        "required": ["lat", "lon", "value", "reasoning"]
                     }
                 }
             },
@@ -94,12 +108,11 @@ class GeminiDataEngineer:
         user_query = f"""
                 Director's Prompt: {director_prompt}
 
-                Mandatory Locations (you must generate data for ALL of these):
+                Mandatory Locations (you must generate data for ALL of these, use the 'type' field for reasoning):
                 {location_list}
 
                 Please generate simulated data for all the mandatory locations above. 
                 Return ONLY a valid JSON object matching the schema with metric, unit, and dataPoints.
-                Each dataPoint should have lat, lon, and value fields.
                 """
         
         response = self.client.models.generate_content(
@@ -114,29 +127,38 @@ class GeminiDataEngineer:
         
         simulated_data = json.loads(response.text)
         
-        # Post-processing: Normalization
-        data_points = simulated_data["dataPoints"]
-        values = [point["value"] for point in data_points]
+        # Post-processing: Normalization and Re-joining Location Type
+        data_points = simulated_data.get("dataPoints", [])
+        
+        if not data_points:
+            simulated_data["baseline"] = {"min": 0, "max": 0, "average": 0}
+            return simulated_data
+            
+        values = [point.get("value", 0) for point in data_points]
         
         min_val = min(values)
         max_val = max(values)
         range_val = max_val - min_val
         
-        # Add normalized values to each data point
+        # Create a dictionary for quick lookup by (lat, lon)
+        location_map = {(row['lat'], row['lon']): row['type'] for index, row in unique_locations.iterrows()}
+        
+        # Add normalized values and the original 'type' back to each data point
         for point in data_points:
+            # Add normalized value (0 to 1 scale)
             if range_val == 0:
                 point["normalized"] = 0.5
             else:
                 point["normalized"] = (point["value"] - min_val) / range_val
-        
+            
+            # Re-join the LocationType (crucial for front-end labeling and tooltips)
+            point["locationType"] = location_map.get((point.get('lat'), point.get('lon')), 'Unknown Location')
+            
         # Add baseline statistics
         simulated_data["baseline"] = {
             "min": min_val,
             "max": max_val,
             "average": sum(values) / len(values)
         }
-        
-        print(f"Generated {len(data_points)} data points")
-        print(f"Value range: {min_val:.2f} - {max_val:.2f}")
         
         return simulated_data

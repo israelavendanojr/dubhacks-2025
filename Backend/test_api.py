@@ -15,10 +15,12 @@ def test_api():
     
     # Sample test data
     test_prompt = {
-        "prompt": "What would air quality look like if all of the cars in the world were electric?"
+        "prompt": "What would air quality look like if all of the cars were electric?"
     }
     
     try:
+        print("Test Prompt:", {test_prompt})
+        print("-" * 50)
         # Make the request
         response = requests.post(url, json=test_prompt)
         
