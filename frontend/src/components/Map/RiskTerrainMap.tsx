@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ColumnLayer } from '@deck.gl/layers';
-import { AmbientLight, DirectionalLight, LightingEffect } from '@deck.gl/core';
+import { SimpleMeshLayer } from '@deck.gl/mesh-layers';
+import { AmbientLight, DirectionalLight, LightingEffect, COORDINATE_SYSTEM } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { TerrainPoint, ViewState } from '../../types/terrain.types';
 import { getRiskColor, getRiskLevel } from '../../utils/colorMapping';
+import { buildHeightfieldMesh, gaussianSmoothGrid } from '../../utils/heightfield';
 
 interface RiskTerrainMapProps {
   terrainData: TerrainPoint[];
@@ -75,33 +76,94 @@ export function RiskTerrainMap({
 
 
 
-  const layers = [
-    // Risk terrain layer - Thicker columns for better visibility
-    new ColumnLayer({
-      id: 'risk-terrain',
-      data: terrainData,
-      diskResolution: 12, // Good resolution for smooth appearance
-      radius: 60, // Thicker radius for better visibility
-      extruded: true,
+  const layers = useMemo(() => {
+    if (!terrainData || terrainData.length === 0) return [] as any[];
+
+    // Infer grid dimensions from generator: GRID_RESOLUTION x GRID_RESOLUTION
+    const gridSize = Math.round(Math.sqrt(terrainData.length));
+    const gridWidth = gridSize;
+    const gridHeight = gridSize;
+
+    // Prepare risk value grid and smooth it
+    const rawValues = new Float32Array(terrainData.length);
+    for (let i = 0; i < terrainData.length; i++) rawValues[i] = terrainData[i].riskScore;
+    const smoothedValues = gaussianSmoothGrid(rawValues, gridWidth, gridHeight, 1.8, 2);
+
+    const mesh = buildHeightfieldMesh(
+      // inject smoothed heights while keeping other props for picking
+      terrainData.map((p, i) => ({ ...p, riskScore: smoothedValues[i] })),
+      gridWidth,
+      gridHeight,
+      8000
+    );
+
+    // Build a color texture canvas 0..1 uv mapping using risk colors
+    const canvas = document.createElement('canvas');
+    canvas.width = gridWidth;
+    canvas.height = gridHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const imageData = ctx.createImageData(gridWidth, gridHeight);
+      const brightness = 1.35; // increase to make colors brighter
+      const boost = (c: number) => Math.min(255, Math.round(c * brightness));
+      for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+          const idx = y * gridWidth + x;
+          const [r, g, b, a] = getRiskColor(smoothedValues[idx]);
+          const base = (y * gridWidth + x) * 4;
+          imageData.data[base + 0] = boost(r);
+          imageData.data[base + 1] = boost(g);
+          imageData.data[base + 2] = boost(b);
+          imageData.data[base + 3] = a;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Helper to find nearest grid cell for picking
+    function getNearestPointFromCoordinate(lon: number, lat: number): TerrainPoint | null {
+      const x = Math.round((lon - mesh.originLon) / mesh.cellSizeLngDeg);
+      const y = Math.round((lat - mesh.originLat) / mesh.cellSizeLatDeg);
+      if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) return null;
+      return terrainData[y * gridWidth + x];
+    }
+
+    const surface = new SimpleMeshLayer({
+      id: 'risk-surface',
+      data: [0], // single mesh instance
+      mesh: {
+        attributes: {
+          positions: { value: mesh.positions, size: 3 },
+          texCoords: { value: mesh.texCoords, size: 2 }
+        },
+        indices: mesh.indices
+      } as any,
+      texture: canvas,
+      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+      coordinateOrigin: [mesh.originLon, mesh.originLat, 0],
       pickable: true,
-      elevationScale: 1,
-      getPosition: (d: TerrainPoint) => [d.lon, d.lat],
-      getElevation: (d: TerrainPoint) => d.riskScore * 8000, // Much higher elevation for dramatic effect
-      getFillColor: (d: TerrainPoint) => getRiskColor(d.riskScore),
-      material: {
-        ambient: 0.6,
-        diffuse: 1.0,
-        shininess: 32,
-        specularColor: [50, 50, 50]
-      },
+      opacity: 0.25,
       parameters: {
         depthTest: true,
-        blend: false
+        blend: true
       },
-      onHover: ({ object }) => setHoveredObject(object as TerrainPoint),
-      onClick: ({ object }) => setHoveredObject(object as TerrainPoint)
-    })
-  ];
+      onHover: ({ coordinate }) => {
+        if (!coordinate) return;
+        const [lon, lat] = coordinate as [number, number];
+        const nearest = getNearestPointFromCoordinate(lon, lat);
+        // Show smoothed risk while preserving original factor breakdown
+        if (nearest) setHoveredObject({ ...nearest, riskScore: smoothedValues[terrainData.indexOf(nearest)] });
+      },
+      onClick: ({ coordinate }) => {
+        if (!coordinate) return;
+        const [lon, lat] = coordinate as [number, number];
+        const nearest = getNearestPointFromCoordinate(lon, lat);
+        if (nearest) setHoveredObject({ ...nearest, riskScore: smoothedValues[terrainData.indexOf(nearest)] });
+      }
+    });
+
+    return [surface];
+  }, [terrainData]);
 
   return (
     <div className="w-full h-full relative">
