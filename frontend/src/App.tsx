@@ -1,6 +1,6 @@
 import { RiskTerrainMap } from './components/Map/RiskTerrainMap';
 import { InfoPanel } from './components/InfoPanel';
-import { InsightsPanel } from './components/InsightsPanel';
+// Removed InsightsPanel in favor of consolidating into left InfoPanel
 import { PromptBar } from './components/PromptBar';
 import { useRiskTerrain } from './hooks/useRiskTerrain';
 import { useState } from 'react';
@@ -29,7 +29,7 @@ function App() {
   return (
     <div className="w-full h-screen bg-black flex flex-col overflow-hidden">
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden border-t border-l border-white/10">
         {/* Left Info Panel */}
         <InfoPanel
           countyName={hoveredCounty?.name || null}
@@ -38,23 +38,18 @@ function App() {
           predictedValue={hoveredCounty?.predictedValue || 0}
           unit={currentData?.unit || ''}
           metric={currentData?.metric || ''}
+          insight={currentInsight}
+          isLoading={insightsLoading}
         />
         
         {/* 3D Map Visualization */}
-        <div className="flex-1">
+        <div className="flex-1 border-t border-r border-white/10">
           <RiskTerrainMap 
             enrichedGeoJson={enrichedGeoJson}
             isGenerating={isGenerating}
             onCountyHover={setHoveredCounty}
           />
         </div>
-        
-        {/* Right Insights Panel */}
-        <InsightsPanel
-          countyName={hoveredCounty?.name || null}
-          insight={currentInsight}
-          isLoading={insightsLoading}
-        />
       </div>
       
       {/* Bottom Prompt Bar */}

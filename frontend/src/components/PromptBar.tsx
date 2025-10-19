@@ -39,9 +39,10 @@ export function PromptBar({ onTerrainGenerated }: PromptBarProps) {
               type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe an environmental scenario... (e.g., 'What if all cars were electric?')"
+              placeholder="     Describe an environmental scenario... (e.g., 'What if all cars were electric?')"
               disabled={isLoading}
               className="w-full h-[60px] px-6 bg-[#222222] border border-white/10 rounded-xl text-white placeholder-gray-500 text-base focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all disabled:opacity-50"
+              style={{ color: 'white' }}
             />
           </div>
           
