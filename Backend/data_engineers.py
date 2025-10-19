@@ -2,42 +2,52 @@ from google import genai
 from google.genai import types
 import pandas as pd
 import json
-import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal, Dict
+from typing import List, Literal, Dict
 
 # Ensure environment variables are loaded for the client initialization
 load_dotenv()
 
 # Define valid metric-unit combinations
-METRIC_UNIT_MAPPING: Dict[str, List[str]] = {
-    "NO2": ["ppb", "ppm", "μg/m³"],
-    "NOx": ["ppb", "ppm", "μg/m³"],
-    "PM2.5": ["μg/m³", "mg/m³"],
-    "PM10": ["μg/m³", "mg/m³"],
-    "O3": ["ppb", "ppm"],
-    "SO2": ["ppb", "ppm", "μg/m³"],
-    "CO": ["ppm", "mg/m³"],
-    "Noise Level": ["dB"],
-    "Temperature": ["°C", "°F"],
-    "Humidity": ["%"],
-    "Wind Speed": ["m/s", "mph", "km/h"]
+METRIC_UNIT_MAPPING: Dict[str, str] = {
+    "NO2": "ppb",
+    "PM2.5": "μg/m³",
+    "GWP": "kg CO2e/m²",
+    "AQI": "NA"
 }
+
+# Map metric to CSV column name
+METRIC_TO_CSV_COLUMN: Dict[str, str] = {
+    "NO2": "NO2 Avg. (ppb)",
+    "PM2.5": "PM2.5 Avg. (µg/m³)",
+    "GWP": "GWP (CO2e per capita, MT/yr)",
+    "AQI": "Annual Avg. AQI (0-500)"
+}
+
+class CountyDataPoint(BaseModel):
+    """Schema for individual county data point output."""
+    name: str = Field(description="County name")
+    lat: float = Field(description="Latitude")
+    lon: float = Field(description="Longitude")
+    seat: str = Field(description="County seat")
+    density: int = Field(description="Population density")
+    ground_truth_value: float = Field(ge=0, description="Real baseline value from CSV for this county")
+    scenario_factor: float = Field(description="Scenario modification factor for this county (e.g., 0.6 for 40% reduction)")
+    predicted_value: float = Field(ge=0, description="Generated value: ground_truth_value * scenario_factor ± std_dev")
+    normalized: float = Field(ge=0, le=1, description="Normalized value 0-1 for visualization")
 
 class ScenarioSpecification(BaseModel):
     """Pydantic model for the Director's structured output."""
     
     target_metric: Literal[
-        "NO2", "NOx", "PM2.5", "PM10", "O3", "SO2", "CO", 
-        "Noise Level", "Temperature", "Humidity", "Wind Speed"
+        "NO2", "PM2.5", "GWP", "AQI"
     ] = Field(
         description="The environmental metric to simulate"
     )
     
     unit: Literal[
-        "ppb", "ppm", "μg/m³", "mg/m³", "dB", "°C", "°F", 
-        "%", "m/s", "mph", "km/h", "Pa", "hPa"
+        "ppb", "μg/m³", "kg CO2e/m²", "NA"
     ] = Field(
         description="The appropriate unit for the metric"
     )
@@ -46,19 +56,9 @@ class ScenarioSpecification(BaseModel):
         description="The target year or timeframe for the simulation (e.g., '2025', 'next year')"
     )
     
-    base_mean: float = Field(
-        ge=0,
-        description="The base mean value for pollution amounts that aligns with scenario severity"
-    )
-    
     standard_deviation: float = Field(
         ge=0,
-        description="The standard deviation for the pollution distribution"
-    )
-    
-    scaling_rules: List[str] = Field(
-        min_length=2,
-        description="At least two concrete, quantifiable scaling rules for spatial variation"
+        description="Standard deviation for random variation in generated values"
     )
     
     scenario_description: str = Field(
@@ -67,29 +67,26 @@ class ScenarioSpecification(BaseModel):
         description="A brief description of the scenario being simulated"
     )
     
-    @field_validator('unit')
-    @classmethod
-    def validate_unit_metric_pair(cls, v, info):
-        """Validate that the unit is compatible with the target metric."""
-        if 'target_metric' in info.data:
-            metric = info.data['target_metric']
-            valid_units = METRIC_UNIT_MAPPING.get(metric, [])
-            if v not in valid_units:
-                valid_units_str = ', '.join(valid_units)
-                raise ValueError(
-                    f"Unit '{v}' is not valid for metric '{metric}'. "
-                    f"Valid units for {metric} are: {valid_units_str}"
-                )
-        return v
+    # Scenario factor guidance for Engineer
+    urban_scenario_factor: float = Field(
+        description="Factor for high density areas (>500/sq mi) - e.g., 0.6 for 40% reduction"
+    )
+    suburban_scenario_factor: float = Field(
+        description="Factor for medium density areas (100-500/sq mi) - e.g., 0.8 for 20% reduction"
+    )
+    rural_scenario_factor: float = Field(
+        description="Factor for low density areas (<100/sq mi) - e.g., 0.95 for 5% reduction"
+    )
+    
+
 
 class DirectorofDataEngineering:
     """
     Converts a natural language user prompt into a structured, technical 
     specification for the data generation engineer.
     """
+    
     def __init__(self, unique_latitude_longitude_file):
-        # We use a client attribute here, but initialize it inside the method 
-        # to ensure it's available when the method is called.
         self.latitude_longitude_file = unique_latitude_longitude_file
         self.client = genai.Client()
         
@@ -101,32 +98,31 @@ class DirectorofDataEngineering:
             "Your primary and sole task is to take a client's request (User Prompt) and convert it into "
             "a highly structured, technical specification suitable for immediate execution by a "
             "synthetic data generation system (the Data Engineer). "
-            "The simulation takes place in the Puget Sound / King County region, WA. "
             
             "You must analyze the user prompt and extract the following information:"
-            "\n1. Target Metric: Choose from: NO2, NOx, PM2.5, PM10, O3, SO2, CO, Noise Level, Temperature, Humidity, Wind Speed"
-            "\n2. Unit: MUST be compatible with the metric. Valid combinations:"
-            "\n   - NO2/NOx: ppb, ppm, μg/m³"
-            "\n   - PM2.5/PM10: μg/m³, mg/m³"
-            "\n   - O3: ppb, ppm"
-            "\n   - SO2: ppb, ppm, μg/m³"
-            "\n   - CO: ppm, mg/m³"
-            "\n   - Noise Level: dB"
-            "\n   - Temperature: °C, °F"
-            "\n   - Humidity: %"
-            "\n   - Wind Speed: m/s, mph, km/h"
+            "\n1. Target Metric: Choose from: NO2, PM2.5, GWP, AQI"
+            "\n2. Unit: Use the standard unit for each metric:"
+            "\n   - NO2: ppb"
+            "\n   - PM2.5: μg/m³"
+            "\n   - GWP: kg CO2e/m²"
+            "\n   - AQI: NA"
             "\n3. Timeframe: Target year (assume next year if not specified)"
-            "\n4. Base Statistics: Mean and standard deviation based on scenario severity (both must be ≥ 0)"
-            "\n5. Scaling Rules: At least 2 spatial variation rules (urban vs rural, etc.)"
+            "\n4. Standard Deviation: Variation amount for randomness (typically 1-5)"
+            "\n5. Scenario Factors: Modification multipliers for different area types:"
+            "\n   - urban_scenario_factor: For high density areas (>500/sq mi)"
+            "\n   - suburban_scenario_factor: For medium density areas (100-500/sq mi)"
+            "\n   - rural_scenario_factor: For low density areas (<100/sq mi)"
+            "\n   Example: 'Remove all cars' -> urban=0.5 (50% reduction), suburban=0.7 (30% reduction), rural=0.9 (10% reduction)"
             "\n6. Description: Brief summary of the scenario (10-500 characters)"
             
             "Return ONLY a valid JSON object with these exact fields:"
             "\n- target_metric: string (from the list above)"
             "\n- unit: string (compatible with the metric)"
             "\n- target_timeframe: string"
-            "\n- base_mean: number (≥ 0)"
             "\n- standard_deviation: number (≥ 0)"
-            "\n- scaling_rules: array of strings (minimum 2 items)"
+            "\n- urban_scenario_factor: number"
+            "\n- suburban_scenario_factor: number"
+            "\n- rural_scenario_factor: number"
             "\n- scenario_description: string (10-500 characters)"
         )
         
@@ -154,136 +150,126 @@ class DirectorofDataEngineering:
             return response.text
     
     def pass_dummy_csv(self):
+        """Return the path to the latitude/longitude CSV file."""
         return self.latitude_longitude_file
-    
-    @staticmethod
-    def get_specification_model():
-        """Return the Pydantic model for scenario specifications."""
-        return ScenarioSpecification
-    
-    @staticmethod
-    def get_valid_metrics():
-        """Return list of valid target metrics."""
-        return [
-            "NO2", "NOx", "PM2.5", "PM10", "O3", "SO2", "CO", 
-            "Noise Level", "Temperature", "Humidity", "Wind Speed"
-        ]
-    
-    @staticmethod
-    def get_valid_units():
-        """Return list of all valid units."""
-        return [
-            "ppb", "ppm", "μg/m³", "mg/m³", "dB", "°C", "°F", 
-            "%", "m/s", "mph", "km/h", "Pa", "hPa"
-        ]
-    
-    @staticmethod
-    def get_valid_units_for_metric(metric: str) -> List[str]:
-        """Return valid units for a specific metric."""
-        return METRIC_UNIT_MAPPING.get(metric, [])
-    
-    @staticmethod
-    def get_metric_unit_mapping():
-        """Return the complete metric-unit mapping."""
-        return METRIC_UNIT_MAPPING
 
 class GeminiDataEngineer:
+    """
+    Generates simulated environmental data based on technical specifications.
+    """
     
     def __init__(self):
         self.client = genai.Client()
         self.model = "gemini-2.5-flash-lite"
         
     def simulate(self, director_prompt, dummy_file):
+        """
+        Generate simulated environmental data based on director specifications.
         
-        # Load the mandatory latitude/longitude coordinates
+        Args:
+            director_prompt: Technical specification from the director
+            dummy_file: Path to CSV file with location data
+            
+        Returns:
+            Dict containing simulated data with CountyDataPoint objects
+        """
+        import random
+        
+        print(f"Generating simulated data for director prompt: {director_prompt}")
+        
+        # Parse the director's specification
+        try:
+            director_spec = json.loads(director_prompt)
+            target_metric = director_spec.get('target_metric', 'NO2')
+            unit = director_spec.get('unit', 'ppb')
+            std_dev = director_spec.get('standard_deviation', 2.0)
+            urban_factor = director_spec.get('urban_scenario_factor', 1.0)
+            suburban_factor = director_spec.get('suburban_scenario_factor', 1.0)
+            rural_factor = director_spec.get('rural_scenario_factor', 1.0)
+            scenario_description = director_spec.get('scenario_description', 'Default scenario')
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error parsing director specification: {e}")
+            # Fallback to defaults
+            target_metric = 'NO2'
+            unit = 'ppb'
+            std_dev = 2.0
+            urban_factor = 1.0
+            suburban_factor = 1.0
+            rural_factor = 1.0
+            scenario_description = 'Default scenario'
+        
+        # Load the CSV data
         df_input = pd.read_csv(dummy_file)
-        # RENAMED COLUMNS for cleaner JSON keys, include county data for factual grounding
-        unique_locations = df_input.rename(
-            columns={'County Name': 'name', 'Latitude': 'lat', 'Longitude': 'lon', 'County Seat': 'seat', 'Pop. Density': 'density'}
-        ).drop_duplicates()
         
-        # Convert the location list to JSON
-        location_list = unique_locations.to_json(orient='records', indent=2)
+        # Get the CSV column for the target metric
+        csv_column = METRIC_TO_CSV_COLUMN.get(target_metric, 'NO2 Avg. (ppb)')
         
-        # --- System Instruction ---
-        system_instruction = (
-            "You are a highly skilled, freelance Data Engineer using Gemini Pro. "
-            "Your task is to take the director's prompt and a list of mandatory output locations. "
-            "You MUST generate a list of JSON objects where each object corresponds EXACTLY to one of the "
-            "mandatory locations provided. You must invent a realistic 'value' (Pollutant Amount) "
-            "based on the Director's request and the geographic location. "
+        # Generate CountyDataPoint objects for each county
+        data_points = []
+        predicted_values = []
+        
+        for _, row in df_input.iterrows():
+            # Extract county data
+            name = row['County Name']
+            lat = float(row['Latitude'])
+            lon = float(row['Longitude'])
+            seat = row['County Seat']
+            density = int(row['Pop. Density'])
+            ground_truth_value = float(row[csv_column])
             
-            "IMPORTANT: Use the population density and county characteristics to factually ground your values: "
-            "- HIGH density areas should have higher pollution values (traffic, industry, density) "
-            "- MEDIUM density areas should have medium pollution values (some traffic, residential) "
-            "- LOW density areas should have lower pollution values (natural, less traffic) "
-            
-            "Your output MUST be a valid JSON object with this structure:"
-            "\n{"
-            "\n  \"metric\": \"string\","
-            "\n  \"unit\": \"string\","
-            "\n  \"dataPoints\": ["
-            "\n    {"
-            "\n      \"name\": \"string\","
-            "\n      \"lat\": number,"
-            "\n      \"lon\": number,"
-            "\n      \"seat\": \"string\","
-            "\n      \"density\": number,"
-            "\n      \"value\": number"
-            "\n    }"
-            "\n  ]"
-            "\n}"
-        )
-        
-        
-        user_query = f"""
-                Director's Prompt: {director_prompt}
-
-                Mandatory Locations (you must generate data for ALL of these):
-                Each location includes name, lat, lon, seat, and density.
-                Use the population density to factually ground your pollution values.
-                {location_list}
-
-                Please generate simulated data for all the mandatory locations above. 
-                Return ONLY a valid JSON object with metric, unit, and dataPoints as specified in the system instruction.
-                """
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=user_query,
-            config={
-                "system_instruction": system_instruction,
-                "response_mime_type": "application/json"
-            }
-        )
-        
-        simulated_data = json.loads(response.text)
-        
-        # Post-processing: Normalization
-        data_points = simulated_data.get("dataPoints", [])
-        
-        if not data_points:
-            simulated_data["baseline"] = {"min": 0, "max": 0, "average": 0}
-            return simulated_data
-            
-        values = [point.get("value", 0) for point in data_points]
-        
-        min_val = min(values)
-        max_val = max(values)
-        range_val = max_val - min_val
-        
-        # Add normalized values to each data point
-        for point in data_points:
-            # Add normalized value (0 to 1 scale)
-            if range_val == 0:
-                point["normalized"] = 0.5
+            # Determine scenario factor based on population density
+            if density > 500:
+                scenario_factor = urban_factor
+            elif density > 100:
+                scenario_factor = suburban_factor
             else:
-                point["normalized"] = (point["value"] - min_val) / range_val
+                scenario_factor = rural_factor
             
-        # Add baseline statistics
-        simulated_data["baseline"] = {
-            "min": min_val,
-            "max": max_val,
-            "average": sum(values) / len(values)
+            # Calculate predicted value: ground_truth * scenario_factor ± random(std_dev)
+            base_predicted = ground_truth_value * scenario_factor
+            random_variation = random.gauss(0, std_dev)
+            predicted_value = max(0, base_predicted + random_variation)  # Ensure non-negative
+            
+            predicted_values.append(predicted_value)
+            
+            # Create CountyDataPoint object
+            data_point = CountyDataPoint(
+                name=name,
+                lat=lat,
+                lon=lon,
+                seat=seat,
+                density=density,
+                ground_truth_value=ground_truth_value,
+                scenario_factor=scenario_factor,
+                predicted_value=predicted_value,
+                normalized=0.0  # Will be calculated below
+            )
+            data_points.append(data_point)
+        
+        # Calculate normalization
+        if predicted_values:
+            min_val = min(predicted_values)
+            max_val = max(predicted_values)
+            range_val = max_val - min_val
+            
+            # Update normalized values
+            for i, data_point in enumerate(data_points):
+                if range_val == 0:
+                    data_point.normalized = 0.5
+                else:
+                    data_point.normalized = (predicted_values[i] - min_val) / range_val
+        
+        # Create response with CountyDataPoint objects
+        simulated_data = {
+            "metric": target_metric,
+            "unit": unit,
+            "scenario_description": scenario_description,
+            "dataPoints": [point.model_dump() for point in data_points],
+            "baseline": {
+                "min": min(predicted_values) if predicted_values else 0,
+                "max": max(predicted_values) if predicted_values else 0,
+                "average": sum(predicted_values) / len(predicted_values) if predicted_values else 0
+            }
         }
         
         return simulated_data
