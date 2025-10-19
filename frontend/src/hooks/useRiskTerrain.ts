@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { RiskWeights, TerrainPoint } from '../types/terrain.types';
-import { generateRiskTerrain } from '../utils/terrainGenerator';
+import type { TerrainPoint } from '../types/terrain.types';
+import { generateRiskTerrain, getDefaultRiskWeights } from '../utils/terrainGenerator';
 
-export function useRiskTerrain(weights: RiskWeights) {
+export function useRiskTerrain() {
+  const weights = useMemo(() => getDefaultRiskWeights(), []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainPoint[]>([]);
   
@@ -32,22 +33,9 @@ export function useRiskTerrain(weights: RiskWeights) {
     return () => clearTimeout(timeoutId);
   }, [weights, generateTerrain]);
   
-  // Get terrain statistics
-  const terrainStats = useMemo(() => {
-    if (terrainData.length === 0) return null;
-    
-    const riskScores = terrainData.map(point => point.riskScore);
-    const min = Math.min(...riskScores);
-    const max = Math.max(...riskScores);
-    const avg = riskScores.reduce((sum, score) => sum + score, 0) / riskScores.length;
-    
-    return { min, max, avg, count: terrainData.length };
-  }, [terrainData]);
   
   return {
     terrainData,
-    isGenerating,
-    generateTerrain,
-    terrainStats
+    isGenerating
   };
 }

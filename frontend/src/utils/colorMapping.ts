@@ -1,9 +1,7 @@
 /**
- * Color mapping system for risk visualization and pollution data
+ * Color mapping system for risk visualization
  * Matches the dramatic color scheme from the reference image
  */
-
-import type { ChemicalConfig } from '../config/chemicals';
 
 export function interpolateColor(
   color1: [number, number, number],
@@ -65,41 +63,3 @@ export function getRiskLevel(riskScore: number): string {
   return 'Extreme';
 }
 
-/**
- * Get pollution color based on normalized amount and chemical type
- */
-export function getPollutionColor(
-  normalizedAmount: number,
-  chemicalConfig?: ChemicalConfig
-): [number, number, number] {
-  // Use chemical-specific color if available, otherwise default to red
-  const primaryColor = chemicalConfig?.color || [239, 68, 68];
-  
-  // Interpolate from green (safe) to chemical's color (dangerous)
-  const green: [number, number, number] = [34, 197, 94];
-  const yellow: [number, number, number] = [234, 179, 8];
-  const orange: [number, number, number] = [249, 115, 22];
-  const red: [number, number, number] = primaryColor;
-  
-  if (normalizedAmount < 0.25) {
-    return interpolateColorRGB(green, yellow, normalizedAmount / 0.25);
-  } else if (normalizedAmount < 0.5) {
-    return interpolateColorRGB(yellow, orange, (normalizedAmount - 0.25) / 0.25);
-  } else if (normalizedAmount < 0.75) {
-    return interpolateColorRGB(orange, red, (normalizedAmount - 0.5) / 0.25);
-  } else {
-    return red;
-  }
-}
-
-function interpolateColorRGB(
-  color1: [number, number, number],
-  color2: [number, number, number],
-  factor: number
-): [number, number, number] {
-  return [
-    Math.round(color1[0] + (color2[0] - color1[0]) * factor),
-    Math.round(color1[1] + (color2[1] - color1[1]) * factor),
-    Math.round(color1[2] + (color2[2] - color1[2]) * factor)
-  ];
-}

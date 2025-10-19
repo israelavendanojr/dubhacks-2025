@@ -30,9 +30,3 @@ export interface ViewState {
   bearing: number;
 }
 
-export interface RiskFactor {
-  name: string;
-  weight: number;
-  color: string;
-  icon: string;
-}
