@@ -1,40 +1,40 @@
-County Name,Latitude (N),Longitude (W),County Seat,Pop. Density (per mi2)
-Adams,46.9947∘,−118.4357∘,Ritzville,∼11
-Asotin,46.1770∘,−117.2001∘,Asotin,∼35
-Benton,46.2415∘,−119.5714∘,Prosser,∼128
-Chelan,47.8692∘,−120.6190∘,Wenatchee,∼28
-Clallam,48.0493∘,−123.9280∘,Port Angeles,∼44
-Clark,45.7792∘,−122.4825∘,Vancouver,∼838
-Columbia,46.2975∘,−117.9078∘,Dayton,∼5
-Cowlitz,46.1932∘,−122.6810∘,Kelso,∼95
-Douglas,47.7361∘,−119.6918∘,Waterville,∼25
-Ferry,48.4703∘,−118.5166∘,Republic,∼3
-Franklin,46.5347∘,−118.8990∘,Pasco,∼82
-Garfield,46.4316∘,−117.5452∘,Pomeroy,∼3
-Grant,47.2057∘,−119.4518∘,Ephrata,∼39
-Grays Harbor,47.1503∘,−123.7735∘,Montesano,∼41
-Island,48.1630∘,−122.5481∘,Coupeville,∼415
-Jefferson,47.7487∘,−123.5960∘,Port Townsend,∼18
-King,47.4902∘,−121.8052∘,Seattle,∼1050
-Kitsap,47.6130∘,−122.6716∘,Port Orchard,∼712
-Kittitas,47.1244∘,−120.6798∘,Ellensburg,∼21
-Klickitat,45.8738∘,−120.7891∘,Goldendale,∼13
-Lewis,46.5778∘,−122.3927∘,Chehalis,∼35
-Lincoln,47.5763∘,−118.4187∘,Davenport,∼5
-Mason,47.3484∘,−123.1927∘,Shelton,∼73
-Okanogan,48.5488∘,−119.7408∘,Okanogan,∼9
-Pacific,46.5557∘,−123.7041∘,South Bend,∼27
-Pend Oreille,48.5323∘,−117.2740∘,Newport,∼10
-Pierce,47.0241∘,−122.1046∘,Tacoma,∼558
-San Juan,48.5782∘,−122.9650∘,Friday Harbor,∼107
-Skagit,48.4794∘,−121.7302∘,Mount Vernon,∼75
-Skamania,46.0230∘,−121.9147∘,Stevenson,∼7
-Snohomish,48.0475∘,−121.6975∘,Everett,∼393
-Spokane,47.6207∘,−117.4040∘,Spokane,∼272
-Stevens,48.3991∘,−117.8552∘,Colville,∼20
-Thurston,46.9258∘,−122.8332∘,Olympia,∼263
-Wahkiakum,46.2918∘,−123.4244∘,Cathlamet,∼8
-Walla Walla,46.2298∘,−118.4784∘,Walla Walla,∼35
-Whatcom,48.8259∘,−121.7199∘,Bellingham,∼95
-Whitman,46.9012∘,−117.5230∘,Colfax,∼27
-Yakima,46.4571∘,−120.7385∘,Yakima,∼51
+County Name,Latitude (N),Longitude (W),County Seat,Pop. Density (per mi2),Annual Avg. AQI (0-500),PM2.5 Avg. (µg/m³),NO2 Avg. (ppb),GWP (CO2e per capita, MT/yr)
+Adams,46.9947,-118.4357,Ritzville,11,48,9.0,2.5,16.0
+Asotin,46.1770,-117.2001,Asotin,35,52,10.5,4.0,11.0
+Benton,46.2415,-119.5714,Prosser,128,61,12.5,9.0,18.0
+Chelan,47.8692,-120.6190,Wenatchee,28,72,16.0,4.5,12.5
+Clallam,48.0493,-123.9280,Port Angeles,44,32,4.5,3.0,8.5
+Clark,45.7792,-122.4825,Vancouver,838,55,6.5,14.0,9.0
+Columbia,46.2975,-117.9078,Dayton,5,45,8.0,2.0,17.5
+Cowlitz,46.1932,-122.6810,Kelso,95,50,7.0,7.0,15.0
+Douglas,47.7361,-119.6918,Waterville,25,68,14.0,3.5,13.5
+Ferry,48.4703,-118.5166,Republic,3,40,6.0,1.5,10.0
+Franklin,46.5347,-118.8990,Pasco,82,58,11.0,8.0,20.0
+Garfield,46.4316,-117.5452,Pomeroy,3,46,8.5,1.0,17.0
+Grant,47.2057,-119.4518,Ephrata,39,63,13.0,4.0,19.5
+Grays Harbor,47.1503,-123.7735,Montesano,41,42,5.5,5.0,11.5
+Island,48.1630,-122.5481,Coupeville,415,45,5.0,6.0,7.5
+Jefferson,47.7487,-123.5960,Port Townsend,18,35,5.0,2.0,13.0
+King,47.4902,-121.8052,Seattle,1050,65,7.0,20.0,8.0
+Kitsap,47.6130,-122.6716,Port Orchard,712,51,6.0,12.0,7.0
+Kittitas,47.1244,-120.6798,Ellensburg,21,68,15.0,3.0,14.0
+Klickitat,45.8738,-120.7891,Goldendale,13,50,9.0,2.5,15.5
+Lewis,46.5778,-122.3927,Chehalis,35,46,6.5,4.5,10.5
+Lincoln,47.5763,-118.4187,Davenport,5,45,8.0,1.5,18.5
+Mason,47.3484,-123.1927,Shelton,73,40,5.5,4.0,9.5
+Okanogan,48.5488,-119.7408,Okanogan,9,60,12.0,2.5,12.0
+Pacific,46.5557,-123.7041,South Bend,27,35,4.0,2.0,9.0
+Pend Oreille,48.5323,-117.2740,Newport,10,42,7.0,1.5,14.5
+Pierce,47.0241,-122.1046,Tacoma,558,58,7.5,15.0,8.5
+San Juan,48.5782,-122.9650,Friday Harbor,107,30,4.0,2.0,6.0
+Skagit,48.4794,-121.7302,Mount Vernon,75,48,6.0,5.0,10.5
+Skamania,46.0230,-121.9147,Stevenson,7,38,5.0,1.5,11.0
+Snohomish,48.0475,-121.6975,Everett,393,54,6.5,10.0,8.0
+Spokane,47.6207,-117.4040,Spokane,272,60,11.5,9.5,10.0
+Stevens,48.3991,-117.8552,Colville,20,50,9.0,2.0,13.0
+Thurston,46.9258,-122.8332,Olympia,263,48,6.0,8.0,9.0
+Wahkiakum,46.2918,-123.4244,Cathlamet,8,38,5.0,1.5,10.0
+Walla Walla,46.2298,-118.4784,Walla Walla,35,55,10.0,4.0,14.5
+Whatcom,48.8259,-121.7199,Bellingham,95,50,6.0,7.0,12.0
+Whitman,46.9012,-117.5230,Colfax,27,52,10.0,3.0,16.5
+Yakima,46.4571,-120.7385,Yakima,51,65,13.5,5.5,15.0
