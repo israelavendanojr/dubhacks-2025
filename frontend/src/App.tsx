@@ -1,11 +1,19 @@
 import { RiskTerrainMap } from './components/Map/RiskTerrainMap';
 import { InfoPanel } from './components/InfoPanel';
+import { InsightsPanel } from './components/InsightsPanel';
 import { PromptBar } from './components/PromptBar';
 import { useRiskTerrain } from './hooks/useRiskTerrain';
 import { useState } from 'react';
 
 function App() {
-  const { enrichedGeoJson, isGenerating, loadTerrainFromAPI, currentData } = useRiskTerrain();
+  const { 
+    enrichedGeoJson, 
+    isGenerating, 
+    loadTerrainFromAPI, 
+    currentData, 
+    countyInsights, 
+    insightsLoading 
+  } = useRiskTerrain();
   
   // Track hovered county for info panel
   const [hoveredCounty, setHoveredCounty] = useState<{
@@ -14,6 +22,9 @@ function App() {
     riskLevel: string;
     predictedValue: number;
   } | null>(null);
+
+  // Get current insight for hovered county
+  const currentInsight = hoveredCounty?.name ? countyInsights[hoveredCounty.name] || null : null;
 
   return (
     <div className="w-full h-screen bg-black flex flex-col overflow-hidden">
@@ -37,6 +48,13 @@ function App() {
             onCountyHover={setHoveredCounty}
           />
         </div>
+        
+        {/* Right Insights Panel */}
+        <InsightsPanel
+          countyName={hoveredCounty?.name || null}
+          insight={currentInsight}
+          isLoading={insightsLoading}
+        />
       </div>
       
       {/* Bottom Prompt Bar */}

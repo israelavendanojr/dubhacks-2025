@@ -32,6 +32,15 @@ export interface ApiError {
   status?: number;
 }
 
+export interface CountyInsights {
+  [countyName: string]: string;
+}
+
+export interface InsightsResponse {
+  success: boolean;
+  insights: CountyInsights;
+}
+
 // Function to call the backend
 export async function generateSimulation(prompt: string): Promise<SimulationResponse> {
   console.log('=== API REQUEST ===');
@@ -97,5 +106,71 @@ export async function generateSimulation(prompt: string): Promise<SimulationResp
     }
     
     throw new Error('An unexpected error occurred while processing your request.');
+  }
+}
+
+// Function to generate insights for all counties
+export async function generateInsights(simulationData: any): Promise<CountyInsights> {
+  console.log('=== INSIGHTS API REQUEST ===');
+  console.log('Simulation Data:', simulationData);
+  console.log('Timestamp:', new Date().toISOString());
+
+  try {
+    const response = await fetch('http://localhost:8000/api/insights', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        simulation_data: simulationData
+      }),
+      // 60 second timeout for insights generation
+      signal: AbortSignal.timeout(60000)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // If we can't parse the error, use the raw text
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const data: InsightsResponse = await response.json();
+    
+    console.log('=== INSIGHTS API RESPONSE ===');
+    console.log('Full Response:', data);
+    console.log('Insights Count:', Object.keys(data.insights).length);
+    console.log('Sample Insights:', Object.entries(data.insights).slice(0, 3));
+    
+    return data.insights;
+  } catch (error) {
+    console.error('=== INSIGHTS API ERROR ===');
+    console.error('Error:', error);
+    
+    if (error instanceof Error) {
+      if (error.name === 'TimeoutError') {
+        throw new Error('Insights generation timed out. The LLM is still processing...');
+      } else if (error.message.includes('fetch')) {
+        throw new Error('Cannot connect to backend. Is the server running on port 8000?');
+      } else {
+        throw error;
+      }
+    }
+    
+    throw new Error('An unexpected error occurred while generating insights.');
   }
 }

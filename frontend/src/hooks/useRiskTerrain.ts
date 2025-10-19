@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { TerrainPoint } from '../types/terrain.types';
-import type { SimulationResponse } from '../utils/apiClient';
+import type { SimulationResponse, CountyInsights } from '../utils/apiClient';
+import { generateInsights } from '../utils/apiClient';
 import { fetchGeoJsonData, enrichGeoJsonWithRisk, createFallbackCountyGeoJson } from '../utils/geojsonFetcher';
 import { convertCountyDataToColumns } from '../utils/dataInterpolation';
 
@@ -13,6 +14,8 @@ export function useRiskTerrain() {
     unit: string;
     description: string;
   } | null>(null);
+  const [countyInsights, setCountyInsights] = useState<CountyInsights>({});
+  const [insightsLoading, setInsightsLoading] = useState(false);
   
   // Function to generate enriched GeoJSON from API county data
   const loadTerrainFromAPI = useCallback(async (apiResponse: SimulationResponse) => {
@@ -87,6 +90,21 @@ export function useRiskTerrain() {
       setTerrainData(columnData);
       
       console.log('Enriched GeoJSON data set successfully!');
+      
+      // Generate insights for all counties
+      console.log('=== GENERATING COUNTY INSIGHTS ===');
+      setInsightsLoading(true);
+      try {
+        const insights = await generateInsights(apiResponse.data);
+        setCountyInsights(insights);
+        console.log('County insights generated successfully:', Object.keys(insights).length, 'counties');
+      } catch (error) {
+        console.error('Failed to generate insights:', error);
+        // Continue without insights - the panel will show fallback message
+        setCountyInsights({});
+      } finally {
+        setInsightsLoading(false);
+      }
     } catch (error) {
       console.error('Error loading enriched GeoJSON from API:', error);
     } finally {
@@ -99,6 +117,8 @@ export function useRiskTerrain() {
     enrichedGeoJson, // New - enriched GeoJSON data
     isGenerating,
     currentData, // New - expose current data
+    countyInsights, // New - county insights map
+    insightsLoading, // New - insights loading state
     loadTerrainFromAPI  // Expose this to PromptInterface
   };
 }

@@ -348,3 +348,113 @@ class GeminiDataEngineer:
                     # Rural areas: 10% reduction
                     fallback_predictions[county['name']] = current_value * 0.9
             return fallback_predictions
+    
+    def generate_county_insights(self, simulation_data):
+        """
+        Generate LLM insights for all counties based on simulation data.
+        
+        Args:
+            simulation_data: The full simulation response data
+            
+        Returns:
+            Dict mapping county names to insight strings
+        """
+        try:
+            # Extract data from simulation response
+            metric = simulation_data.get('metric', 'NO2')
+            unit = simulation_data.get('unit', 'ppb')
+            scenario_description = simulation_data.get('scenario_description', 'Environmental scenario')
+            data_points = simulation_data.get('dataPoints', [])
+            baseline = simulation_data.get('baseline', {})
+            
+            # Prepare county data for LLM
+            county_analysis = []
+            for point in data_points:
+                county_info = f"""
+                County: {point['name']}
+                County Seat: {point['seat']}
+                Population Density: {point['density']} people/sq mi
+                Current {metric}: {point['ground_truth_value']:.1f} {unit}
+                Predicted {metric}: {point['predicted_value']:.1f} {unit}
+                Change Factor: {point['scenario_factor']:.2f}x
+                Location: {point['lat']:.4f}, {point['lon']:.4f}
+                """
+                county_analysis.append(county_info)
+            
+            counties_text = "\n".join(county_analysis)
+            
+            system_instruction = (
+                f"You are an environmental data analyst providing insights on county-level environmental data. "
+                f"SCENARIO: {scenario_description}\n"
+                f"METRIC: {metric} ({unit})\n"
+                f"BASELINE: Min={baseline.get('min', 0):.1f}, Max={baseline.get('max', 0):.1f}, Avg={baseline.get('average', 0):.1f}\n\n"
+                
+                f"Your task is to generate 3-4 sentence insights for each county explaining:"
+                f"\n- Why this county has its specific predicted value"
+                f"\n- Local factors affecting the result (density, geography, industry)"
+                f"\n- How the scenario specifically impacts this county"
+                f"\n- Overall environmental situation and context"
+                f"\n\n"
+                f"Write insights that are:"
+                f"\n- Scientifically accurate and realistic"
+                f"\n- Specific to each county's characteristics"
+                f"\n- Accessible to general audiences"
+                f"\n- Focused on environmental and geographic factors"
+                f"\n\n"
+                f"Return ONLY a JSON object with county names as keys and insight strings as values:"
+                f"\n{{\"King\": \"King County's urban density and industrial activity...\", \"Pierce\": \"Pierce County's mix of urban and suburban areas...\", ...}}"
+            )
+            
+            user_query = f"""
+            Analyze these Washington counties and provide environmental insights for each:
+            
+            {counties_text}
+            
+            Return a JSON object with county names as keys and 3-4 sentence insight strings as values.
+            """
+            
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=user_query,
+                config={
+                    "system_instruction": system_instruction,
+                    "response_mime_type": "application/json"
+                }
+            )
+            
+            insights = json.loads(response.text)
+            return insights
+            
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"Error generating county insights: {e}")
+            # Fallback to simple insights
+            fallback_insights = {}
+            for point in data_points:
+                county_name = point['name']
+                density = point['density']
+                predicted = point['predicted_value']
+                current = point['ground_truth_value']
+                change = point['scenario_factor']
+                
+                if density > 500:
+                    area_type = "urban"
+                elif density > 100:
+                    area_type = "suburban"
+                else:
+                    area_type = "rural"
+                
+                if change < 0.8:
+                    trend = "significant reduction"
+                elif change < 1.2:
+                    trend = "minimal change"
+                else:
+                    trend = "increase"
+                
+                fallback_insights[county_name] = (
+                    f"{county_name} County is a {area_type} area with a population density of {density} people per square mile. "
+                    f"The predicted {metric} level of {predicted:.1f} {unit} represents a {trend} from the current baseline of {current:.1f} {unit}. "
+                    f"This {area_type} environment is influenced by local industrial activity, transportation patterns, and geographic factors. "
+                    f"The scenario appears to have a {trend} impact on this county's environmental conditions."
+                )
+            
+            return fallback_insights

@@ -39,6 +39,9 @@ except Exception as e:
 class ScenarioPrompt(BaseModel):
     prompt: str
 
+class InsightsRequest(BaseModel):
+    simulation_data: dict
+
 @app.get("/")
 async def root():
     return {"message": "Environmental Data Simulation API", "status": "running"}
@@ -83,6 +86,39 @@ async def simulate_scenario(scenario: ScenarioPrompt):
         raise HTTPException(
             status_code=500, 
             detail=f"Processing Error: {str(e)}"
+        )
+
+@app.post("/api/insights")
+async def generate_insights(request: InsightsRequest):
+    """
+    Generate LLM insights for all counties based on simulation data.
+    
+    This endpoint takes the full simulation response and generates
+    contextual insights for each county explaining the predicted values.
+    """
+    if engineer is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Service not ready. Backend components failed to initialize."
+        )
+    
+    if not request.simulation_data:
+        raise HTTPException(status_code=400, detail="Simulation data cannot be empty.")
+        
+    try:
+        # Generate insights for all counties
+        county_insights = engineer.generate_county_insights(request.simulation_data)
+        
+        return {
+            "success": True,
+            "insights": county_insights
+        }
+        
+    except Exception as e:
+        print(f"Error generating insights: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Insights Generation Error: {str(e)}"
         )
 
 if __name__ == "__main__":
