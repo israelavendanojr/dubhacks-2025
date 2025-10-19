@@ -16,11 +16,11 @@ class DirectorofDataEngineering:
     def __init__(self, unique_latitude_longitude_file):
         # We use a client attribute here, but initialize it inside the method 
         # to ensure it's available when the method is called.
-        self.latitude_longitude_file = unique_latitude_longitude_file
+        self.latitude_longitude_file = unique_lat_longitude_file
         self.client = genai.Client()
         
     def directions(self, user_prompt):
-        
+        # pydantic? 
         system_instruction_text = (
             "You are a Data Simulation Director specializing in environmental data engineering. "
             "Your primary and sole task is to take a client's request (User Prompt) and convert it into "

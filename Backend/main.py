@@ -26,19 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration
-# NOTE: Ensure this file exists in the same directory as the script
-SIMULATION_FILEPATH = "unique_lat_lon.csv" 
 
-# Initialize Director and Engineer instances
-try:
-    director = DirectorofDataEngineering(SIMULATION_FILEPATH)
-    engineer = GeminiDataEngineer()
-except Exception as e:
-    # If initialization fails (e.g., missing API key), the service starts but routes will fail
-    print(f"FATAL: Failed to initialize Gemini clients. Check API key: {e}")
-    director = None
-    engineer = None
 
 class ScenarioPrompt(BaseModel):
     """Input model for the POST request."""
@@ -61,6 +49,21 @@ async def simulate_scenario(scenario: ScenarioPrompt):
     1. Director converts the user prompt into a technical specification.
     2. Engineer generates and post-processes the geo-spatial data.
     """
+
+        # Configuration
+    # NOTE: Ensure this file exists in the same directory as the script
+    SIMULATION_FILEPATH = "unique_lat_lon.csv" 
+
+    # Initialize Director and Engineer instances
+    try:
+        director = DirectorofDataEngineering(SIMULATION_FILEPATH)
+        engineer = GeminiDataEngineer()
+    except Exception as e:
+        # If initialization fails (e.g., missing API key), the service starts but routes will fail
+        print(f"FATAL: Failed to initialize Gemini clients. Check API key: {e}")
+        director = None
+        engineer = None
+        
     if director is None or engineer is None:
         raise HTTPException(
             status_code=503,
