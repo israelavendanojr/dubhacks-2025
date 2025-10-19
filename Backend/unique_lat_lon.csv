@@ -1,4 +1,4 @@
-County Name,Latitude (N),Longitude (W),County Seat,Pop. Density (per mi2),Annual Avg. AQI (0-500),PM2.5 Avg. (µg/m³),NO2 Avg. (ppb),GWP (CO2e per capita, MT/yr)
+County Name,Latitude,Longitude,County Seat,Pop. Density,Annual Avg. AQI (0-500),PM2.5 Avg. (µg/m³),NO2 Avg. (ppb),GWP (CO2e per capita, MT/yr)
 Adams,46.9947,-118.4357,Ritzville,11,48,9.0,2.5,16.0
 Asotin,46.1770,-117.2001,Asotin,35,52,10.5,4.0,11.0
 Benton,46.2415,-119.5714,Prosser,128,61,12.5,9.0,18.0
