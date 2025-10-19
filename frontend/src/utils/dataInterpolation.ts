@@ -8,7 +8,7 @@ import type { TerrainPoint } from '../types/terrain.types';
 export function convertCountyDataToColumns(
   countyData: CountyDataPoint[],
   interpolate: boolean = true,
-  targetDensity: number = 150 // Interpolate to ~150 points if needed
+  targetDensity: number = 2000 // Interpolate to ~200 points for better visual density
 ): TerrainPoint[] {
   
   console.log('=== CONVERTING COUNTY DATA ===');
@@ -40,11 +40,11 @@ export function convertCountyDataToColumns(
 
 /**
  * Interpolate additional points between counties using IDW
- * Creates a denser grid of columns while preserving data accuracy
+ * Creates a dense grid of columns to fill the entire state
  */
 function interpolateCountyDataToColumns(
   countyData: CountyDataPoint[],
-  targetPoints: number = 150
+  targetPoints: number = 2000
 ): TerrainPoint[] {
   const BOUNDS = {
     north: 49.0,
@@ -69,21 +69,30 @@ function interpolateCountyDataToColumns(
     });
   }
   
-  // Add interpolated points to reach target density
+  // Calculate optimal grid size for dense coverage
   const additionalPoints = targetPoints - countyData.length;
-  const gridSize = Math.ceil(Math.sqrt(additionalPoints));
+  const aspectRatio = (BOUNDS.east - BOUNDS.west) / (BOUNDS.north - BOUNDS.south);
+  const gridCols = Math.ceil(Math.sqrt(additionalPoints * aspectRatio));
+  const gridRows = Math.ceil(additionalPoints / gridCols);
   
-  const latStep = (BOUNDS.north - BOUNDS.south) / gridSize;
-  const lonStep = (BOUNDS.east - BOUNDS.west) / gridSize;
+  console.log(`Creating dense grid: ${gridCols} x ${gridRows} = ${gridCols * gridRows} points`);
   
-  for (let i = 0; i < gridSize; i++) {
-    for (let j = 0; j < gridSize; j++) {
+  const latStep = (BOUNDS.north - BOUNDS.south) / gridRows;
+  const lonStep = (BOUNDS.east - BOUNDS.west) / gridCols;
+  
+  // Create dense grid with much smaller spacing
+  // Process in batches for better performance
+  const batchSize = 1000;
+  let processedCount = 0;
+  
+  for (let i = 0; i < gridRows; i++) {
+    for (let j = 0; j < gridCols; j++) {
       const lat = BOUNDS.south + i * latStep;
       const lon = BOUNDS.west + j * lonStep;
       
-      // Skip if too close to an existing county center
+      // Only skip if extremely close to county center (much smaller threshold)
       const tooClose = countyData.some(county => 
-        Math.abs(county.lat - lat) < 0.1 && Math.abs(county.lon - lon) < 0.1
+        Math.abs(county.lat - lat) < 0.01 && Math.abs(county.lon - lon) < 0.01
       );
       
       if (!tooClose) {
@@ -98,21 +107,30 @@ function interpolateCountyDataToColumns(
             floodClimate: riskScore
           }
         });
+        
+        processedCount++;
+        
+        // Log progress for large datasets
+        if (processedCount % batchSize === 0) {
+          console.log(`Processed ${processedCount} interpolated points...`);
+        }
       }
     }
   }
   
+  console.log(`Generated ${columns.length} total data points (${columns.length - countyData.length} interpolated)`);
   return columns;
 }
 
 /**
- * Inverse Distance Weighting interpolation
+ * Inverse Distance Weighting interpolation optimized for high density
+ * Creates smooth transitions between county data points
  */
 function idwInterpolation(
   lat: number,
   lon: number,
   counties: CountyDataPoint[],
-  power: number = 2
+  power: number = 1.2 // Even smoother transitions for dense grid
 ): number {
   let weightedSum = 0;
   let weightSum = 0;
@@ -120,9 +138,11 @@ function idwInterpolation(
   for (const county of counties) {
     const distance = haversineDistance(lat, lon, county.lat, county.lon);
     
-    if (distance < 0.01) return county.normalized;
+    // If very close to a county center, return exact value
+    if (distance < 0.002) return county.normalized;
     
-    const weight = 1 / Math.pow(distance, power);
+    // Use inverse distance weighting with smoothing
+    const weight = 1 / Math.pow(distance + 0.005, power); // Smaller constant for denser grid
     weightedSum += county.normalized * weight;
     weightSum += weight;
   }

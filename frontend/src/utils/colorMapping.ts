@@ -63,3 +63,21 @@ export function getRiskLevel(riskScore: number): string {
   return 'Extreme';
 }
 
+/**
+ * Dramatic height exaggeration for 3D terrain visualization
+ * Creates "mountain peaks" for high-risk areas and keeps valleys low
+ */
+export function getExaggeratedHeight(riskScore: number): number {
+  // Low values (0-0.4): Keep relatively flat (multiply by 0.5-2)
+  // Mid values (0.4-0.7): Moderate increase (multiply by 2-5)
+  // High values (0.7-1.0): Dramatic peaks (multiply by 5-10)
+  
+  if (riskScore < 0.4) {
+    return riskScore * 3000; // Max 1200m for low values
+  } else if (riskScore < 0.7) {
+    return Math.pow(riskScore, 1.8) * 10000; // Accelerating growth
+  } else {
+    return Math.pow(riskScore, 2.5) * 18000; // Dramatic peaks up to 18km
+  }
+}
+

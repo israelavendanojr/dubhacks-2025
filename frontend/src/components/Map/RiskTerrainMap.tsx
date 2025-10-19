@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
 import { ColumnLayer } from '@deck.gl/layers';
-import { AmbientLight, DirectionalLight, LightingEffect, COORDINATE_SYSTEM } from '@deck.gl/core';
+import { AmbientLight, DirectionalLight, LightingEffect } from '@deck.gl/core';
 import Map from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { TerrainPoint, ViewState } from '../../types/terrain.types';
-import { getRiskColor, getRiskLevel } from '../../utils/colorMapping';
+import { getRiskColor, getRiskLevel, getExaggeratedHeight } from '../../utils/colorMapping';
 
 interface RiskTerrainMapProps {
   terrainData: TerrainPoint[];
@@ -16,10 +16,10 @@ interface RiskTerrainMapProps {
 const KING_COUNTY_VIEW = {
   longitude: -122.2015,    // Center of King County
   latitude: 47.4668,
-  zoom: 9.5,               // Shows full county
+  zoom: 10.5,               // Shows full county
   pitch: 60,               // Dramatic 3D angle
   bearing: -20,            // Slight rotation
-  minZoom: 8,              // Prevent zooming out too far
+  minZoom: 6,              // Allow zooming out much farther
   maxZoom: 16,             // Prevent zooming in too close
   maxPitch: 85,            // Allow steep angles
   minPitch: 0              // Allow flat 2D view
@@ -43,7 +43,7 @@ export function RiskTerrainMap({
           lon: p.lon,
           lat: p.lat,
           riskScore: p.riskScore,
-          elevation: p.riskScore * 8000
+          elevation: getExaggeratedHeight(p.riskScore)
         })),
         riskScoreRange: {
           min: Math.min(...terrainData.map(p => p.riskScore)),
@@ -88,28 +88,11 @@ export function RiskTerrainMap({
     console.log('Building column layer for', terrainData.length, 'data points');
     console.log('Sample terrain data:', terrainData.slice(0, 3));
 
-    // Helper to find nearest column for picking
-    function getNearestPointFromCoordinate(lon: number, lat: number): TerrainPoint | null {
-      let nearest: TerrainPoint | null = null;
-      let minDistance = Infinity;
-      
-      for (const point of terrainData) {
-        const distance = Math.sqrt(
-          Math.pow(point.lon - lon, 2) + Math.pow(point.lat - lat, 2)
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearest = point;
-        }
-      }
-      
-      return nearest;
-    }
 
     console.log('Creating ColumnLayer with terrain data');
     console.log('Sample terrain data for columns:', terrainData.slice(0, 3).map(d => ({
       position: [d.lon, d.lat],
-      elevation: d.riskScore * 8000,
+      elevation: getExaggeratedHeight(d.riskScore),
       color: getRiskColor(d.riskScore),
       riskScore: d.riskScore
     })));
@@ -123,8 +106,8 @@ export function RiskTerrainMap({
         return [r, g, b, 255];
       },
       getLineColor: [0, 0, 0, 255],
-      getElevation: (d: TerrainPoint) => d.riskScore * 8000,
-      radius: 2000, // radius in meters
+      getElevation: (d: TerrainPoint) => getExaggeratedHeight(d.riskScore),
+      radius: 3000, // radius in meters - increased for fuller coverage
       pickable: true,
       opacity: 0.8,
       onHover: ({ object }) => {
