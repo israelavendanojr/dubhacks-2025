@@ -9,6 +9,13 @@ interface PromptBarProps {
 export function PromptBar({ onTerrainGenerated }: PromptBarProps) {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+
+  const triggerShake = () => {
+    setPrompt(''); // Clear the input first
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 600); // Stop shaking after 600ms
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +31,7 @@ export function PromptBar({ onTerrainGenerated }: PromptBarProps) {
     } catch (error) {
       console.error('Generation failed:', error);
       // Optionally show error toast
+      triggerShake(); // Trigger shake animation and clear input
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +50,10 @@ export function PromptBar({ onTerrainGenerated }: PromptBarProps) {
               placeholder="Describe an environmental scenario... (e.g., 'What if all cars were electric?')"
               disabled={isLoading}
               className="w-full h-[60px] pr-6 bg-[#222222] border border-white/10 rounded-xl text-white placeholder-gray-500 text-base focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all disabled:opacity-50"
-              style={{ color: 'white', paddingLeft: '20px' }}
+              style={{ 
+                color: 'white',paddingLeft:"20px",
+                animation: isShaking ? 'shake 0.6s ease-in-out' : 'none'
+              }}
             />
           </div>
           
