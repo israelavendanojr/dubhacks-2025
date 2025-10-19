@@ -1,9 +1,3 @@
-export interface RiskWeights {
-  airQuality: number;
-  noisePollution: number;
-  floodClimate: number;
-}
-
 export interface TerrainPoint {
   lon: number;
   lat: number;
@@ -13,13 +7,6 @@ export interface TerrainPoint {
     noisePollution: number;
     floodClimate: number;
   };
-}
-
-export interface GridCell {
-  lat: number;
-  lon: number;
-  x: number;
-  y: number;
 }
 
 export interface ViewState {
