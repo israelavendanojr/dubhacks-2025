@@ -3,7 +3,7 @@
 # KELP - Environmental Risk Terrain Visualizer
 AUTHORS: JEFFREY,ISRAEL,PRANAV,ZURIAHN
 
-**DubHacks 2025 Project** 🏔️
+**DubHacks 2025 Project** 
 
 A cutting-edge 3D geospatial visualization platform that transforms environmental risk data into dramatic mountain landscapes. Built for the University of Washington's DubHacks 2025 hackathon, this project combines AI-powered data generation with immersive 3D terrain visualization to help users understand environmental risks across King County, Seattle.
 
@@ -192,14 +192,14 @@ Create a `.env` file in the `Backend/` directory:
 GOOGLE_API_KEY=your_google_gemini_api_key_here
 ```
 
-## 🎨 Visual Design
+## Visual Design
 
 ### Color Scale
-- **🟢 Green (0-15%)**: Safe areas (valleys)
-- **🟡 Yellow (15-35%)**: Low risk
-- **🟠 Orange (35-50%)**: Moderate risk
-- **🔴 Red (50-85%)**: High risk
-- **🟣 Purple (85-100%)**: Extreme risk (peaks)
+- ** Green (0-15%)**: Safe areas (valleys)
+- ** Yellow (15-35%)**: Low risk
+- ** Orange (35-50%)**: Moderate risk
+- ** Red (50-85%)**: High risk
+- ** Purple (85-100%)**: Extreme risk (peaks)
 
 ### 3D Effects
 - **Dynamic Height**: Risk scores × 3000 for dramatic visibility
